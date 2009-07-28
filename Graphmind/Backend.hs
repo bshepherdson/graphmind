@@ -18,6 +18,7 @@ module Graphmind.Backend
 (
    getNode
   ,putNode
+  ,gmCommit
 )
 where
 
@@ -35,6 +36,9 @@ gmQuickQuery sql params = gets conn >>= \c -> io (quickQuery' c sql params)
 
 gmRun :: String -> [SqlValue] -> GM ()
 gmRun sql params = gets conn >>= \c -> io (run c sql params) >> return ()
+
+gmCommit :: GM ()
+gmCommit = gets conn >>= io . commit
 
 -- | Given a node ID, retrieve it and return a Node.
 --

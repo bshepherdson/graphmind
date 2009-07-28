@@ -70,7 +70,6 @@ maybeRead s = case reads s of
 
 
 
-
 parser :: String -> GM ()
 parser s = do
   let args = words s
@@ -97,20 +96,20 @@ shutdown = do
 
 -- | Shows the currently viewed node.
 --
--- Commands: ls, show, view
+-- Commands: @ls@, @show@, @view@
 cmdShowNode :: Command
 cmdShowNode _ _ = gets view >>= io . print
 
 -- | Equivalent of 'ShowNode' for the focused node.
 --
--- Commands: fls, focus
+-- Commands: @fls@, @focus@
 cmdFocus :: Command
 cmdFocus _ _ = gets focus >>= io . print
 
 
 -- | Displays just the names of the current nodes.
 --
--- Commands: pwd, where
+-- Commands: @pwd@, @where@
 cmdWhere :: Command
 cmdWhere _ _ = do
   st <- get
@@ -129,7 +128,7 @@ cmdWhere _ _ = do
 -- 3. By a unique infix of a bookmarked node's name. Currently these include only the magic names
 --    @focus@ and @view@, since bookmarks aren't implemented.
 --
--- Commands: cd, move, mv
+-- Commands: @cd@, @move@, @mv@
 cmdMove :: Command
 cmdMove c []   = internalMoveUsage c []
 cmdMove c args = do
@@ -189,7 +188,7 @@ locateNode extract args = do
 -- 3. By a unique infix of a bookmarked node's name. Currently these include only the magic names
 --    @focus@ and @view@, since bookmarks aren't implemented.
 --
--- Commands: fcd, fmove, fmv
+-- Commands: @fcd@, @fmove@, @fmv@
 cmdMoveFocus :: Command
 cmdMoveFocus c [] = internalMoveUsage c []
 cmdMoveFocus c args = do
@@ -203,10 +202,12 @@ cmdMoveFocus c args = do
 
 -- | Links nodes together.
 --
--- Links the view and focus nodes together. 
+-- Links the 'view' and 'focus' nodes together. 
 -- If they're already linked, this is a no-op, and will say so.
 --
--- TODO: Allow an argument to connect an arbitrary node to the view node.
+-- TODO: Allow an argument to connect an arbitrary node to the 'view' node.
+--
+-- Commands: @link@
 cmdLink :: Command
 cmdLink _ _ = do
   v <- gets view
@@ -215,7 +216,7 @@ cmdLink _ _ = do
     Just _  -> io $ putStrLn $ "There is already a link between view ('" ++ title v ++ "') and focus ('" ++ title f ++ "')."
     Nothing -> do
       putNode $ v { adjacent = (_id f, title f) : adjacent v }
-      io . commit =<< gets conn
+      gmCommit
       v' <- fromJust <$> getNode (_id v)
       f' <- fromJust <$> getNode (_id f)
       modify $ \s -> s { view = v', focus = f' }
@@ -223,9 +224,11 @@ cmdLink _ _ = do
 
 
 
--- | Unlinks nodes. Specifically, the view and focus nodes.
+-- | Unlinks nodes. Specifically, the 'view' and 'focus' nodes.
 --
 -- If they aren't connected, this command will say so and do nothing.
+--
+-- Commands: @unlink@
 cmdUnlink :: Command
 cmdUnlink _ _ = do
   v <- gets view
@@ -234,7 +237,7 @@ cmdUnlink _ _ = do
     Nothing -> io $ putStrLn $ "No link exists between view ('" ++ title v ++ "') and focus ('" ++ title f ++ "')."
     Just x  -> do
       putNode $ v { adjacent = adjacent v \\ [(_id f, title f)] }
-      io . commit =<< gets conn
+      gmCommit
       v' <- fromJust <$> getNode (_id v)
       f' <- fromJust <$> getNode (_id f)
       modify $ \s -> s { view = v', focus = f' }
@@ -242,9 +245,53 @@ cmdUnlink _ _ = do
 
 
 
-cmdEdit = undefined
-cmdRename = undefined
-cmdSwap = undefined
+-- | Updates the text of the 'view' node.
+--
+-- Currently just lets you type in a new body 'text'.
+--
+-- TODO: Invoke the user's @$EDITOR@ instead!
+--
+-- Commands: @edit@
+cmdEdit :: Command
+cmdEdit _ _ = do
+  v <- gets view
+  io $ putStrLn $ "Enter new body text: "
+  s <- io $ getLine
+  putNode $ v { text = Just s }
+  gmCommit
+  v' <- fromJust <$> getNode (_id v)
+  modify $ \s -> s { view = v' }
+  io $ putStrLn $ "Body text of the view node ('" ++ title v' ++ "') updated."
+
+
+
+-- | Changes the title of the 'view' node.
+--
+-- Commands: @rename@
+cmdRename :: Command
+cmdRename _ _ = do
+  v <- gets view
+  io $ putStrLn $ "Enter new title: "
+  s <- io $ getLine
+  putNode $ v { title = s }
+  gmCommit
+  v' <- fromJust <$> getNode (_id v)
+  modify $ \s -> s { view = v' }
+  io $ putStrLn $ "Title of the view node changed to '" ++ title v' ++ "'."
+
+
+-- | Exchanges the 'view' and 'focus' nodes.
+--
+-- Commands: @swap@
+cmdSwap :: Command
+cmdSwap _ _ = do
+  modify $ \s -> s { view = focus s, focus = view s }
+  io $ putStrLn $ "Swapped view and focus nodes:"
+  cmdWhere "swap" []
+
+
+
+
 
 main = undefined
 
