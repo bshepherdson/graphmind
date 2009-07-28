@@ -29,7 +29,7 @@ import Database.HDBC
 
 import Data.Char (toLower)
 import Data.List
-import Data.Maybe (maybeToList)
+import Data.Maybe (maybeToList, fromJust)
 
 import System.Exit (exitSuccess)
 
@@ -133,9 +133,12 @@ cmdWhere _ _ = do
 cmdMove :: Command
 cmdMove c []   = internalMoveUsage c []
 cmdMove c args = do
-  v <- gets view
-  f <- gets focus
-  internalMove v f (adjacent v) (\n -> modify $ \s -> s { view = n }) "view" c args
+  mn <- locateNode (gets view) args
+  case mn of
+    Nothing -> io $ putStrLn $ "Can't move, error identifying target node."
+    Just n  -> do 
+      modify $ \s -> s { view = n }
+      io $ putStrLn $ "View node moved to '" ++ title n ++ "'"
 
 
 -- | Internal function for handling the usage of the various movement commands generically.
@@ -148,29 +151,31 @@ internalMoveUsage c []   = do
   io $ putStrLn $ "* One of the magic nodes 'view' or 'focus'."
 
 
--- | Takes the 'view' and 'focus' nodes as the first two arguments, then the list of
--- nodes adjacent to the relevant one, a function that updates the right value in GMState,
--- and the name to use in the output.
-internalMove :: Node -> Node -> [(NodeId, String)] -> (Node -> GM ()) -> String -> Command
-internalMove v f adj update name _ args = do
-  let arg    = map toLower $ unwords args -- FIXME: unwords is imperfect here, it might reduce multiple spaces to one space in a node name.
+-- | Given a @(GM Node)@, searches that Node's adjacent list for a uniquely identified node.
+-- See the documentation for 'cmdMove' or 'cmdMoveFocus' for an explanation of how nodes may be identified.
+locateNode :: (GM Node) -> [String] -> GM (Maybe Node)
+locateNode extract args = do
+  f <- gets focus
+  v <- gets view
+  relevant <- extract
+  let adj    = adjacent relevant
+      arg    = map toLower $ unwords args -- FIXME: unwords is imperfect here, it might reduce multiple spaces to one space in a node name.
       byName = filter ((arg `isInfixOf`) . map toLower . snd) adj
       byNum  = case maybeRead arg of
                  Nothing -> []
                  Just n  -> maybeToList . lookup n . zip [1..] $ adj
       byMark = [ y | (x,y) <- [("view", (_id v, title v)),("focus", (_id f, title f))], x == arg ]
   case byName ++ byNum ++ byMark of
-    [] -> io $ putStrLn $ "No matches found for node: '" ++ arg ++ "'."
+    [] -> io (putStrLn $ "No matches found for node: '" ++ arg ++ "'.") >> return Nothing
     [x] -> do
       n <- getNode $ fst x
       case n of
-        Nothing -> io $ putStrLn $ "Could not find a node with associated ID " ++ show (fst x) ++ " in the database."
-        Just n' -> do
-          update n'
-          io $ putStrLn $ name ++ " is now '" ++ snd x
+        Nothing -> io (putStrLn $ "Could not find a node with ID " ++ show (fst x) ++ " in the database.") >> return Nothing
+        Just _ -> return n
     xs -> do 
       io $ putStrLn $ "Ambigious match for node '"++ arg ++"'. Candidates: "
       mapM_ (io . putStrLn) (map snd xs)
+      return Nothing
 
 
 -- | Moves the 'focus' node to the named node.
@@ -188,14 +193,55 @@ internalMove v f adj update name _ args = do
 cmdMoveFocus :: Command
 cmdMoveFocus c [] = internalMoveUsage c []
 cmdMoveFocus c args = do
+  mn <- locateNode (gets focus) args
+  case mn of
+    Nothing -> io $ putStrLn $ "Can't move, error identifying target node."
+    Just n  -> do 
+      modify $ \s -> s { focus = n }
+      io $ putStrLn $ "Focus node moved to '" ++ title n ++ "'"
+
+
+-- | Links nodes together.
+--
+-- Links the view and focus nodes together. 
+-- If they're already linked, this is a no-op, and will say so.
+--
+-- TODO: Allow an argument to connect an arbitrary node to the view node.
+cmdLink :: Command
+cmdLink _ _ = do
   v <- gets view
   f <- gets focus
-  internalMove v f (adjacent f) (\n -> modify $ \s -> s { view = n }) "focus" c args
+  case lookup (_id f) (adjacent v) of
+    Just _  -> io $ putStrLn $ "There is already a link between view ('" ++ title v ++ "') and focus ('" ++ title f ++ "')."
+    Nothing -> do
+      putNode $ v { adjacent = (_id f, title f) : adjacent v }
+      io . commit =<< gets conn
+      v' <- fromJust <$> getNode (_id v)
+      f' <- fromJust <$> getNode (_id f)
+      modify $ \s -> s { view = v', focus = f' }
+      io $ putStrLn $ "View ('" ++ title v' ++ "') and focus ('" ++ title f' ++ "') are now linked."
 
 
 
-cmdLink = undefined
-cmdUnlink = undefined
+-- | Unlinks nodes. Specifically, the view and focus nodes.
+--
+-- If they aren't connected, this command will say so and do nothing.
+cmdUnlink :: Command
+cmdUnlink _ _ = do
+  v <- gets view
+  f <- gets focus
+  case lookup (_id f) (adjacent v) of
+    Nothing -> io $ putStrLn $ "No link exists between view ('" ++ title v ++ "') and focus ('" ++ title f ++ "')."
+    Just x  -> do
+      putNode $ v { adjacent = adjacent v \\ [(_id f, title f)] }
+      io . commit =<< gets conn
+      v' <- fromJust <$> getNode (_id v)
+      f' <- fromJust <$> getNode (_id f)
+      modify $ \s -> s { view = v', focus = f' }
+      io $ putStrLn $ "View ('" ++ title v' ++ "') and focus ('" ++ title f' ++ "') are no longer linked."
+
+
+
 cmdEdit = undefined
 cmdRename = undefined
 cmdSwap = undefined

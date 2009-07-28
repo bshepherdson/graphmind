@@ -33,6 +33,8 @@ import Graphmind.Types
 gmQuickQuery :: String -> [SqlValue] -> GM [[SqlValue]]
 gmQuickQuery sql params = gets conn >>= \c -> io (quickQuery' c sql params)
 
+gmRun :: String -> [SqlValue] -> GM ()
+gmRun sql params = gets conn >>= \c -> io (run c sql params) >> return ()
 
 -- | Given a node ID, retrieve it and return a Node.
 --
@@ -67,9 +69,9 @@ putNode new = do
 -- internal (for now?) function to create a new node.
 createNode :: Node -> GM ()
 createNode new = do
-  gmQuickQuery "INSERT INTO Node (title, text) VALUES (?,?)" [toSql $ title new, toSql $ text new]
-  mapM_ (\(i,_) -> gmQuickQuery "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ _id new, toSql $ i]
-                >> gmQuickQuery "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, toSql $ _id new])
+  gmRun "INSERT INTO Node (title, text) VALUES (?,?)" [toSql $ title new, toSql $ text new]
+  mapM_ (\(i,_) -> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ _id new, toSql $ i]
+                >> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, toSql $ _id new])
         (adjacent new)
 
 
@@ -77,16 +79,16 @@ createNode new = do
 updateNode :: Node -> Node -> GM ()
 updateNode new old = do
   when (title new /= title old || text new /= text old) 
-    $ gmQuickQuery "UPDATE Node SET title = ?, text = ? WHERE _id = ?" 
+    $ gmRun "UPDATE Node SET title = ?, text = ? WHERE _id = ?" 
                    [toSql $ title new, toSql $ text new, toSql $ _id new] 
         >> return ()
   let missing = deleteFirstsBy ((==) `on` fst) (adjacent old) (adjacent new)
       added   = deleteFirstsBy ((==) `on` fst) (adjacent new) (adjacent old)
-  mapM_ (\(i,_) -> gmQuickQuery "DELETE FROM Link WHERE node_to = ? AND node_from = ?" [toSql $ i, toSql $ _id new]
-                >> gmQuickQuery "DELETE FROM Link WHERE node_to = ? AND node_from = ?" [toSql $ _id new, toSql $ i])
+  mapM_ (\(i,_) -> gmRun "DELETE FROM Link WHERE node_to = ? AND node_from = ?" [toSql $ i, toSql $ _id new]
+                >> gmRun "DELETE FROM Link WHERE node_to = ? AND node_from = ?" [toSql $ _id new, toSql $ i])
         missing
-  mapM_ (\(i,_) -> gmQuickQuery "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, toSql $ _id new]
-                >> gmQuickQuery "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, toSql $ _id new])
+  mapM_ (\(i,_) -> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, toSql $ _id new]
+                >> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, toSql $ _id new])
         added
 
 
