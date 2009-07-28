@@ -18,6 +18,7 @@ module Graphmind.Backend
 (
    getNode
   ,putNode
+  ,createNode
   ,gmCommit
 )
 where
@@ -70,12 +71,15 @@ putNode new = do
     Just o  -> updateNode new o
 
 
--- internal (for now?) function to create a new node.
+-- | Creates a new node.
 createNode :: Node -> GM ()
 createNode new = do
-  gmRun "INSERT INTO Node (title, text) VALUES (?,?)" [toSql $ title new, toSql $ text new]
-  mapM_ (\(i,_) -> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ _id new, toSql $ i]
-                >> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, toSql $ _id new])
+  let params = [toSql $ title new, toSql $ text new]
+  gmRun "INSERT INTO Node (title, text) VALUES (?,?)" params
+  rs <- gmQuickQuery "SELECT _id, title, text FROM Node WHERE title = ?" $ take 1 params
+  let n = head . last $ rs -- grab the _id
+  mapM_ (\(i,_) -> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [n, toSql $ i]
+                >> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, n])
         (adjacent new)
 
 

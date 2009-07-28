@@ -26,12 +26,15 @@ import Graphmind.Backend
 import qualified Data.Map as M
 
 import Database.HDBC
+import Database.HDBC.Sqlite3
 
 import Data.Char (toLower)
 import Data.List
-import Data.Maybe (maybeToList, fromJust)
+import Data.Maybe (maybeToList, fromJust, isNothing)
 
-import System.Exit (exitSuccess)
+import System.Exit (exitSuccess, ExitCode(..), exitWith)
+import System.Cmd (rawSystem)
+import System.Environment (getArgs)
 
 
 -- main GM monad parsing system
@@ -59,6 +62,7 @@ commands = M.fromList [
   ,("edit"     , cmdEdit)
   ,("rename"   , cmdRename)
   ,("swap"     , cmdSwap)
+  ,("new"      , cmdNew)
   ]
 
 
@@ -290,8 +294,72 @@ cmdSwap _ _ = do
   cmdWhere "swap" []
 
 
+-- | Create a new node attached to the 'view' node.
+--
+-- Prompts for a title and creates this new node.
+--
+-- Commands: @new@
+cmdNew :: Command
+cmdNew _ _ = do
+  v <- gets view
+  io $ putStrLn $ "Enter the title for the new node: "
+  s <- io getLine
+  putNode $ Node { _id = 0, title = s, text = Nothing, adjacent = [(_id v, title v)] }
+  Just v' <- getNode (_id v)
+  modify $ \s -> s { view = v' }
+  io $ putStrLn $ "Created new node '" ++ s ++ "'."
+
+
+-- main and company
+
+usage :: IO ()
+usage = do
+  putStrLn $ unlines [
+     "Usage: graphmind [OPTIONS] <database file>"
+    ,"  Options:"
+    ,"  --help, -h      Display this help message."
+    ,"  --new <db file> Create a new database with the given name."
+    ]
+
+newDB :: FilePath -> IO ()
+newDB db = do
+  code <- rawSystem "sqlite3" [db]
+  case code of
+    ExitSuccess -> putStrLn $ "Successfully created database '" ++ db ++ "'."
+    _           -> putStrLn "Error attempting to create database." >> exitWith code
+
+
+start :: FilePath -> IO ()
+start db = do
+  c <- connectSqlite3 db
+  let fakeNode = Node { _id = -1, title = "Fake Node", text = Nothing, adjacent = [] }
+  runGM loop (GMState { conn = c, view = fakeNode, focus = fakeNode })
 
 
 
-main = undefined
+-- the main loop
+loop :: GM ()
+loop = do
+  v <- getNode 1
+  when (isNothing v) $ putNode Node { _id = 1, title = "Default Node", text = Nothing, adjacent = [] }
+  (Just v') <- getNode 1
+  modify $ \s -> s { view = v', focus = v' }
+  forever $ do
+    s <- io $ getLine
+    parser s
+
+
+
+-- connect to the DB, and then launch the main loop.
+main = do
+  args <- getArgs
+  case args of
+    [] -> usage
+    ("--help":_) -> usage
+    ("-h":_) -> usage
+    ("--new":db:_) -> newDB db
+    (db:[]) -> start db
+    _ -> usage
+
+  
 
