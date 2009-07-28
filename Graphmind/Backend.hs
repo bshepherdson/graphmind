@@ -5,7 +5,7 @@
 -- License     :  BSD3
 --
 -- Maintainer  :  Braden.Shepherdson@gmail.com
--- Stability   :  unstable
+-- Stability   :  experimental
 -- Portability :  portable
 --
 -- Back-end functions for Graphmind, dealing mainly with accessing the
@@ -16,6 +16,8 @@
 
 module Graphmind.Backend 
 (
+   getNode
+  ,putNode
 )
 where
 

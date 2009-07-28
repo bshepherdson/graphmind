@@ -7,7 +7,7 @@
 -- License     :  BSD3
 --
 -- Maintainer  :  Braden.Shepherdson@gmail.com
--- Stability   :  unstable
+-- Stability   :  experimental
 -- Portability :  portable
 --
 -- Types used internally by Graphmind.
