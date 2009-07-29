@@ -1,0 +1,17 @@
+
+Building on Windows
+
+You need sqlite3.h and sqlite3.dll in the directory for this to work.
+
+cabal install --extra-lib-dir=c:\haskell\graphmind --extra-include-dir=c:\haskell\graphmind
+
+in cmd.exe (not Cygwin!)
+
+
+
+Building on Linux
+
+Install sqlite3 package (-dev version if applicable) and
+
+cabal install
+
