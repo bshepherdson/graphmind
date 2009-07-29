@@ -23,7 +23,7 @@ module Graphmind.Types (
  ,GMState(..)
  ,runGM
  ,io
- ,
+ ,Command(..)
 ) where
 
 import Control.Monad.State
@@ -79,4 +79,7 @@ runGM (GM a) s = evalStateT a s
 io :: forall a. IO a -> GM a
 io = liftIO
 
+
+
+type Command = String -> [String] -> GM ()
 

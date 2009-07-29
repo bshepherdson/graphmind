@@ -22,6 +22,7 @@ module Main (
 
 import Graphmind.Types
 import Graphmind.Backend
+import Graphmind.Help
 
 import qualified Data.Map as M
 
@@ -40,8 +41,6 @@ import System.IO
 
 
 -- main GM monad parsing system
-
-type Command = String -> [String] -> GM ()
 
 commands :: M.Map String Command
 commands = M.fromList [
@@ -66,6 +65,7 @@ commands = M.fromList [
   ,("rename"   , cmdRename)
   ,("swap"     , cmdSwap)
   ,("new"      , cmdNew)
+  ,("help"     , cmdHelp)
   ]
 
 
