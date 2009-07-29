@@ -1,0 +1,37 @@
+name:               graphmind
+version:            0.0.1
+homepage:           http://code.haskell.org/~shepheb/graphmind
+synopsis:           A mind mapping tool based on undirected graphs
+description:
+    Graphmind is a mind mapping tool based on undirected graphs. An undirected
+    graph is a collection of nodes with bidirectional links between them. In
+    Graphmind, each node has a title, its neighbouring nodes, and an optional
+    body text.
+
+    Graphmind is deliberately freeform: your nodes can be people, places,
+    events, projects, schedule items, bugs, pet peeves. The structure need
+    not be hierarchical, cycles are not only allowed but encouraged.
+
+    Currently Graphmind has only a command-line interface. Plans for a web
+    interface exist but are likely part of the distant future.
+
+    Graphmind is cross-platform, though it requires a working Sqlite3.
+category:           Applications
+license:            BSD3
+license-file:       LICENSE
+author:             Braden Shepherdson
+maintainer:         Braden.Shepherdson@gmail.com
+extra-source-files: 
+cabal-version:      >= 1.2
+build-type:         Simple
+
+executable graphmind
+    main-is:            Graphmind.hs
+    other-modules:      Graphmind.Types
+                        Graphmind.Backend
+
+    ghc-options:        -funbox-strict-fields -Wall -O2
+    ghc-prof-options:   -prof -auto-all
+    build-depends:      base >= 3 && < 4, HDBC >= 2.1, HDBC-sqlite3 >= 2.1,
+                        mtl, process, containers
+
