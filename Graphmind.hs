@@ -33,7 +33,8 @@ import Data.List
 import Data.Maybe (maybeToList, fromJust, isNothing)
 
 import System.Exit (exitSuccess, ExitCode(..), exitWith)
-import System.Cmd (rawSystem)
+--import Control.Exception (handle)
+import System.Process (runInteractiveProcess)
 import System.Environment (getArgs)
 import System.IO
 
@@ -329,10 +330,11 @@ usage = do
 
 newDB :: FilePath -> IO ()
 newDB db = do
-  code <- rawSystem "sqlite3" [db]
-  case code of
-    ExitSuccess -> putStrLn $ "Successfully created database '" ++ db ++ "'."
-    _           -> putStrLn "Error attempting to create database." >> exitWith code
+  --handle (\e -> putStrLn ("Error attempting to create database: " ++ show e) >> exitWith (ExitFailure 1)) $ do
+    (pin,_,_,p) <- runInteractiveProcess "sqlite3" ["-batch" , db] Nothing Nothing
+    hPutStrLn pin schema
+    hClose pin
+    putStrLn $ "Successfully created database '" ++ db ++ "'."
 
 
 start :: FilePath -> IO ()

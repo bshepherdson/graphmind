@@ -22,6 +22,7 @@ module Graphmind.Backend
   ,gmCommit
   ,updateFocus
   ,updateView
+  ,schema
 )
 where
 
@@ -49,7 +50,7 @@ update g p = do
   n <- g
   fromDB <- getNode $ _id n
   case fromDB of
-    Nothing -> error "Couldn't find node for update!"
+    Nothing -> return n -- do nothing, return the cached copy.
     Just n' -> p n' >> return n'
 
 updateFocus, updateView :: GM Node
@@ -118,4 +119,21 @@ updateNode new old = do
                 >> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, toSql $ _id new])
         added
 
+
+
+schema :: String
+schema = unlines [
+  "CREATE TABLE Node ("
+      ,"_id           INTEGER NOT NULL PRIMARY KEY"
+     ,",title         VARCHAR(100) NOT NULL"
+     ,",text          TEXT"
+     ,");"
+  ,""
+  ,""
+  ,"CREATE TABLE Link ("
+      ,"_id           INTEGER NOT NULL PRIMARY KEY"
+     ,",node_from     INTEGER NOT NULL REFERENCES Node (_id)"
+     ,",node_to       INTEGER NOT NULL REFERENCES Node (_id)"
+     ,");"
+  ]
 
