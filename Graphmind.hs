@@ -51,6 +51,7 @@ commands = M.fromList [
   ,("view"     , cmdShowNode)
   ,("focus"    , cmdFocus)
   ,("fls"      , cmdFocus)
+  ,("fshow"    , cmdFocus)
   ,("pwd"      , cmdWhere)
   ,("where"    , cmdWhere)
   ,("cd"       , cmdMove)
@@ -223,9 +224,8 @@ cmdLink _ _ = do
     Nothing -> do
       putNode $ v { adjacent = (_id f, title f) : adjacent v }
       gmCommit
-      v' <- fromJust <$> getNode (_id v)
-      f' <- fromJust <$> getNode (_id f)
-      modify $ \s -> s { view = v', focus = f' }
+      v' <- gets view
+      f' <- gets focus
       io $ putStrLn $ "View ('" ++ title v' ++ "') and focus ('" ++ title f' ++ "') are now linked."
 
 
@@ -244,9 +244,8 @@ cmdUnlink _ _ = do
     Just x  -> do
       putNode $ v { adjacent = adjacent v \\ [(_id f, title f)] }
       gmCommit
-      v' <- fromJust <$> getNode (_id v)
-      f' <- fromJust <$> getNode (_id f)
-      modify $ \s -> s { view = v', focus = f' }
+      v' <- gets view
+      f' <- gets focus
       io $ putStrLn $ "View ('" ++ title v' ++ "') and focus ('" ++ title f' ++ "') are no longer linked."
 
 
@@ -265,8 +264,7 @@ cmdEdit _ _ = do
   s <- io $ getLine
   putNode $ v { text = if null s then Nothing else Just s }
   gmCommit
-  v' <- fromJust <$> getNode (_id v)
-  modify $ \s -> s { view = v' }
+  v' <- gets view
   io $ putStrLn $ "Body text of the view node ('" ++ title v' ++ "') updated."
 
 
@@ -285,8 +283,7 @@ cmdRename _ xs = do
   let s = unwords xs
   putNode $ v { title = s }
   gmCommit
-  v' <- fromJust <$> getNode (_id v)
-  modify $ \s -> s { view = v' }
+  v' <- gets view
   io $ putStrLn $ "Title of the view node changed from '"++ title v ++"' to '" ++ title v' ++ "'."
 
 
@@ -300,19 +297,21 @@ cmdSwap _ _ = do
   cmdWhere "swap" []
 
 
--- | Create a new node attached to the 'view' node.
+-- | Create a new node attached to the 'focus' node, and move the view to the new one.
 --
 -- Prompts for a title and creates this new node.
 --
 -- Commands: @new@
 cmdNew :: Command
 cmdNew _ _ = do
-  v <- gets view
+  f <- gets focus
   io $ putStrLn $ "Enter the title for the new node: "
   s <- io getLine
-  createNode $ Node { _id = 0, title = s, text = Nothing, adjacent = [(_id v, title v)] }
-  Just v' <- getNode (_id v)
-  modify $ \s -> s { view = v' }
+  putNode $ Node { _id = 0, title = s, text = Nothing, adjacent = [(_id f, title f)] }
+  f' <- gets focus
+  let newID = maximum . map fst . adjacent $ f'
+  new <- fromJust <$> getNode newID
+  modify $ \s -> s { view = new }
   io $ putStrLn $ "Created new node '" ++ s ++ "'."
 
 -----------------------------------------------------------------------------------------
