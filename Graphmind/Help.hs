@@ -27,8 +27,8 @@ import qualified Data.Map as M
 type Help = GM ()
 
 cmdHelp :: Command
-cmdHelp cmd []    = helpIndex
-cmdHelp cmd (a:_) = case M.lookup (map toLower a) help of
+cmdHelp _ []    = helpIndex
+cmdHelp _ (a:_) = case M.lookup (map toLower a) help of
                       Nothing -> helpIndex
                       Just h  -> h
 
@@ -63,7 +63,7 @@ help = M.fromList [
 
 
 template :: String -> [String] -> Help
-template cmd text = io . putStrLn . unlines $ ["", cmd', map (const '=') cmd', ""] ++ text
+template cmd x = io . putStrLn . unlines $ ["", cmd', map (const '=') cmd', ""] ++ x
   where cmd' = "   " ++ cmd ++ "   "
 
 

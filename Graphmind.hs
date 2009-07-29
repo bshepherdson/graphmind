@@ -33,7 +33,7 @@ import Data.Char (toLower)
 import Data.List
 import Data.Maybe (maybeToList, fromJust, isNothing)
 
-import System.Exit (exitSuccess, ExitCode(..), exitWith)
+import System.Exit (exitSuccess)
 --import Control.Exception (handle)
 import System.Process (runInteractiveProcess)
 import System.Environment (getArgs)
@@ -138,7 +138,7 @@ cmdWhere _ _ = do
 -- Commands: @cd@, @move@, @mv@
 cmdMove :: Command
 cmdMove c []   = internalMoveUsage c []
-cmdMove c args = do
+cmdMove _ args = do
   mn <- locateNode (gets view) args
   case mn of
     Nothing -> io $ putStrLn $ "Can't move, error identifying target node."
@@ -155,6 +155,7 @@ internalMoveUsage c []   = do
   io $ putStrLn $ "* A number as given by ls, show or view;"
   io $ putStrLn $ "* A unique part of the name (not case-sensitive);"
   io $ putStrLn $ "* One of the magic nodes 'view' or 'focus'."
+internalMoveUsage _ _ = error "internalMoveUsage called with arguments"
 
 
 -- | Given a @(GM Node)@, searches that Node's adjacent list for a uniquely identified node.
@@ -167,7 +168,7 @@ locateNode extract args = do
   let adj    = adjacent relevant
       arg    = map toLower $ unwords args -- FIXME: unwords is imperfect here, it might reduce multiple spaces to one space in a node name.
       byName = filter ((arg `isInfixOf`) . map toLower . snd) adj
-      byNum  = case maybeRead arg of
+      byNum  = case maybeRead arg :: Maybe Int of
                  Nothing -> []
                  Just n  -> maybeToList . lookup n . zip [1..] $ adj
       byMark = [ y | (x,y) <- [("view", (_id v, title v)),("focus", (_id f, title f))], x == arg ]
@@ -198,7 +199,7 @@ locateNode extract args = do
 -- Commands: @fcd@, @fmove@, @fmv@
 cmdMoveFocus :: Command
 cmdMoveFocus c [] = internalMoveUsage c []
-cmdMoveFocus c args = do
+cmdMoveFocus _ args = do
   mn <- locateNode (gets focus) args
   case mn of
     Nothing -> io $ putStrLn $ "Can't move, error identifying target node."
@@ -241,7 +242,7 @@ cmdUnlink _ _ = do
   f <- gets focus
   case lookup (_id f) (adjacent v) of
     Nothing -> io $ putStrLn $ "No link exists between view ('" ++ title v ++ "') and focus ('" ++ title f ++ "')."
-    Just x  -> do
+    Just _  -> do
       putNode $ v { adjacent = adjacent v \\ [(_id f, title f)] }
       gmCommit
       v' <- gets view
@@ -306,13 +307,13 @@ cmdNew :: Command
 cmdNew _ _ = do
   f <- gets focus
   io $ putStrLn $ "Enter the title for the new node: "
-  s <- io getLine
-  putNode $ Node { _id = 0, title = s, text = Nothing, adjacent = [(_id f, title f)] }
+  newTitle <- io getLine
+  putNode $ Node { _id = 0, title = newTitle, text = Nothing, adjacent = [(_id f, title f)] }
   f' <- gets focus
   let newID = maximum . map fst . adjacent $ f'
   new <- fromJust <$> getNode newID
   modify $ \s -> s { view = new }
-  io $ putStrLn $ "Created new node '" ++ s ++ "'."
+  io $ putStrLn $ "Created new node '" ++ newTitle ++ "'."
 
 -----------------------------------------------------------------------------------------
 -- main and company
@@ -330,7 +331,7 @@ usage = do
 newDB :: FilePath -> IO ()
 newDB db = do
   --handle (\e -> putStrLn ("Error attempting to create database: " ++ show e) >> exitWith (ExitFailure 1)) $ do
-    (pin,_,_,p) <- runInteractiveProcess "sqlite3" ["-batch" , db] Nothing Nothing
+    (pin,_,_,_) <- runInteractiveProcess "sqlite3" ["-batch" , db] Nothing Nothing
     hPutStrLn pin schema
     hClose pin
     putStrLn $ "Successfully created database '" ++ db ++ "'."
@@ -362,6 +363,7 @@ loop = do
 
 
 -- connect to the DB, and then launch the main loop.
+main :: IO ()
 main = do
   args <- getArgs
   case args of

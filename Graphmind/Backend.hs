@@ -27,7 +27,7 @@ module Graphmind.Backend
 where
 
 import Database.HDBC
-import Database.HDBC.Sqlite3
+--import Database.HDBC.Sqlite3
 
 import Data.List
 import Data.Function (on)
@@ -65,12 +65,13 @@ getNode :: NodeId -> GM (Maybe Node)
 getNode n = do
   rs <- gmQuickQuery "SELECT _id, title, text FROM Node WHERE _id = ?" [toSql n]
   case rs of
-    [] -> return Nothing
     [sql] -> do
       let node = Node { _id = fromSql $ sql !! 0, title = fromSql $ sql !! 1, text = fromSql $ sql !! 2, adjacent = [] }
       adjs  <- adjacentNodes (_id node)
       return . Just $ node { adjacent = map (\[x,y] -> (fromSql x, fromSql y)) adjs }
+    _     -> return Nothing
 
+adjacentNodes :: NodeId -> GM [[SqlValue]]
 adjacentNodes n = gmQuickQuery "SELECT Node._id, Node.title FROM Link INNER JOIN Node ON Link.node_to = Node._id WHERE Link.node_from = ?" [toSql n]
 
 -- | Given a Node, writes it to the database. If the node exists but differs

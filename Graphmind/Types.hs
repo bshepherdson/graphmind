@@ -23,13 +23,13 @@ module Graphmind.Types (
  ,GMState(..)
  ,runGM
  ,io
- ,Command(..)
+ ,Command
 ) where
 
 import Control.Monad.State
 import Control.Applicative
 
-import Database.HDBC
+import Database.HDBC ()
 import Database.HDBC.Sqlite3
 
 type NodeId = Int
@@ -44,7 +44,7 @@ data Node = Node {
 
 
 instance Show Node where
-  show (Node i t x a) = unlines $ [
+  show (Node _ t x a) = unlines $ [
       ""
     , t'
     , map (const '=') t'
