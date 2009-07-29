@@ -262,7 +262,7 @@ cmdEdit _ _ = do
   v <- gets view
   io $ putStrLn $ "Enter new body text: "
   s <- io $ getLine
-  putNode $ v { text = Just s }
+  putNode $ v { text = if null s then Nothing else Just s }
   gmCommit
   v' <- fromJust <$> getNode (_id v)
   modify $ \s -> s { view = v' }
