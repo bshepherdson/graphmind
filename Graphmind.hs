@@ -35,6 +35,7 @@ import Data.Maybe (maybeToList, fromJust, isNothing)
 import System.Exit (exitSuccess, ExitCode(..), exitWith)
 import System.Cmd (rawSystem)
 import System.Environment (getArgs)
+import System.IO
 
 
 -- main GM monad parsing system
@@ -336,6 +337,7 @@ newDB db = do
 
 start :: FilePath -> IO ()
 start db = do
+  putStrLn $ "Graphmind 0.0.1 (c) Braden Shepherdson 2009"
   c <- connectSqlite3 db
   let fakeNode = Node { _id = -1, title = "Fake Node", text = Nothing, adjacent = [] }
   runGM loop (GMState { conn = c, view = fakeNode, focus = fakeNode })
@@ -350,6 +352,9 @@ loop = do
   (Just v') <- getNode 1
   modify $ \s -> s { view = v', focus = v' }
   forever $ do
+    v'' <- gets view
+    io $ putStr $ title v'' ++ "> "
+    io $ hFlush stdout
     s <- io $ getLine
     parser s
 
