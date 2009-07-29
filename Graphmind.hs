@@ -158,8 +158,8 @@ internalMoveUsage c []   = do
 -- See the documentation for 'cmdMove' or 'cmdMoveFocus' for an explanation of how nodes may be identified.
 locateNode :: (GM Node) -> [String] -> GM (Maybe Node)
 locateNode extract args = do
-  f <- updateFocus
-  v <- updateView
+  f <- gets focus
+  v <- gets view
   relevant <- extract
   let adj    = adjacent relevant
       arg    = map toLower $ unwords args -- FIXME: unwords is imperfect here, it might reduce multiple spaces to one space in a node name.
@@ -179,20 +179,6 @@ locateNode extract args = do
       io $ putStrLn $ "Ambigious match for node '"++ arg ++"'. Candidates: "
       mapM_ (io . putStrLn) (map snd xs)
       return Nothing
-
-
-
-update :: (GM Node) -> (Node -> GM ()) -> GM Node
-update g p = do
-  n <- g
-  fromDB <- getNode $ _id n
-  case fromDB of
-    Nothing -> error "Couldn't find node for update!"
-    Just n' -> p n' >> return n'
-
-updateFocus, updateView :: GM Node
-updateFocus = update (gets focus) (\f -> modify $ \s -> s { focus = f })
-updateView  = update (gets view)  (\v -> modify $ \s -> s { view  = v })
 
 
 -- | Moves the 'focus' node to the named node.

@@ -20,6 +20,8 @@ module Graphmind.Backend
   ,putNode
   ,createNode
   ,gmCommit
+  ,updateFocus
+  ,updateView
 )
 where
 
@@ -40,6 +42,20 @@ gmRun sql params = gets conn >>= \c -> io (run c sql params) >> return ()
 
 gmCommit :: GM ()
 gmCommit = gets conn >>= io . commit
+
+
+update :: (GM Node) -> (Node -> GM ()) -> GM Node
+update g p = do
+  n <- g
+  fromDB <- getNode $ _id n
+  case fromDB of
+    Nothing -> error "Couldn't find node for update!"
+    Just n' -> p n' >> return n'
+
+updateFocus, updateView :: GM Node
+updateFocus = update (gets focus) (\f -> modify $ \s -> s { focus = f })
+updateView  = update (gets view)  (\v -> modify $ \s -> s { view  = v })
+
 
 -- | Given a node ID, retrieve it and return a Node.
 --
@@ -69,6 +85,9 @@ putNode new = do
   case old of
     Nothing -> createNode new
     Just o  -> updateNode new o
+  updateFocus
+  updateView
+  return ()
 
 
 -- | Creates a new node.
