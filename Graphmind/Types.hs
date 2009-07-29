@@ -40,9 +40,24 @@ data Node = Node {
    , title    :: !String
    , text     :: Maybe String
    , adjacent :: ![(NodeId,String)] -- IDs and names
-} deriving (Read, Show)
+} deriving (Read)
 
 
+instance Show Node where
+  show (Node i t x a) = unlines $ [
+      ""
+    , t'
+    , map (const '=') t'
+    , ""
+    , "Adjacent nodes:"
+    ]
+    ++ map showAdj (zip [1..] (map snd a))
+    ++ case x of
+         Nothing -> []
+         Just x' -> ["", x' ]
+   where t' = "   " ++ t ++ "   "
+         showAdj :: (Int,String) -> String
+         showAdj (n,y) = show n ++ ". " ++ y
 
 instance Eq Node where
   (Node x _ _ _) == (Node y _ _ _) = x == y -- equality is just based on IDs
