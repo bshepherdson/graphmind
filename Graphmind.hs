@@ -304,16 +304,19 @@ cmdSwap _ _ = do
 --
 -- Commands: @new@
 cmdNew :: Command
-cmdNew _ _ = do
-  f <- gets focus
+cmdNew _ [] = do
   io $ putStrLn $ "Enter the title for the new node: "
   newTitle <- io getLine
+  cmdNew undefined [newTitle]
+cmdNew _ as = do
+  f <- gets focus
+  let newTitle = unwords as
   putNode $ Node { _id = 0, title = newTitle, text = Nothing, adjacent = [(_id f, title f)] }
   f' <- gets focus
   let newID = maximum . map fst . adjacent $ f'
   new <- fromJust <$> getNode newID
   modify $ \s -> s { view = new }
-  io $ putStrLn $ "Created new node '" ++ newTitle ++ "'."
+  io $ putStrLn $ "Changing view to new node '" ++ newTitle ++ "'."
 
 -----------------------------------------------------------------------------------------
 -- main and company
