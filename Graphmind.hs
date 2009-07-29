@@ -273,15 +273,19 @@ cmdEdit _ _ = do
 --
 -- Commands: @rename@
 cmdRename :: Command
-cmdRename _ _ = do
+cmdRename _ [] = do
   v <- gets view
-  io $ putStrLn $ "Enter new title: "
+  io $ putStrLn $ "Enter new title for the view node (currently '" ++ title v ++"'): "
   s <- io $ getLine
+  cmdRename undefined [s]
+cmdRename _ xs = do
+  v <- gets view
+  let s = unwords xs
   putNode $ v { title = s }
   gmCommit
   v' <- fromJust <$> getNode (_id v)
   modify $ \s -> s { view = v' }
-  io $ putStrLn $ "Title of the view node changed to '" ++ title v' ++ "'."
+  io $ putStrLn $ "Title of the view node changed from '"++ title v ++"' to '" ++ title v' ++ "'."
 
 
 -- | Exchanges the 'view' and 'focus' nodes.
