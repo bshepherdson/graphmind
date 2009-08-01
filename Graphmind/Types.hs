@@ -81,5 +81,5 @@ io = liftIO
 
 
 
-type Command = String -> [String] -> GM ()
+type Command = String -> String -> GM ()
 

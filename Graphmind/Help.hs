@@ -28,7 +28,7 @@ type Help = GM ()
 
 cmdHelp :: Command
 cmdHelp _ []    = helpIndex
-cmdHelp _ (a:_) = case M.lookup (map toLower a) help of
+cmdHelp _ a = case M.lookup (map toLower a) help of
                       Nothing -> helpIndex
                       Just h  -> h
 

@@ -79,14 +79,10 @@ maybeRead s = case reads s of
 
 parser :: String -> GM ()
 parser s = do
-  let args = words s
-  case args of
-    []       -> return ()
-    (cmd:as) ->
-      case M.lookup cmd commands of
-        Nothing -> io $ putStrLn $ "Unknown command: '" ++ cmd ++ "'"
-        Just c  -> c cmd as
-
+  let (cmd,arg) = break (==' ') s
+  case M.lookup cmd commands of
+    Nothing -> io $ putStrLn $ "Unknown command: '" ++ cmd ++ "'"
+    Just c  -> c cmd (drop 1 arg) -- remove the space, but don't die on []
 
 
 cmdQuit :: Command
@@ -149,7 +145,7 @@ cmdMove _ args = do
 
 -- | Internal function for handling the usage of the various movement commands generically.
 internalMoveUsage :: Command
-internalMoveUsage c []   = do
+internalMoveUsage c ""   = do
   io $ putStrLn $ "Usage: " ++ c ++ " <adjacent node>"
   io $ putStrLn $ "Where an adjacent node can be:"
   io $ putStrLn $ "* A number as given by ls, show or view;"
@@ -160,13 +156,12 @@ internalMoveUsage _ _ = error "internalMoveUsage called with arguments"
 
 -- | Given a @(GM Node)@, searches that Node's adjacent list for a uniquely identified node.
 -- See the documentation for 'cmdMove' or 'cmdMoveFocus' for an explanation of how nodes may be identified.
-locateNode :: (GM Node) -> [String] -> GM (Maybe Node)
-locateNode extract args = do
+locateNode :: (GM Node) -> String -> GM (Maybe Node)
+locateNode extract arg = do
   f <- gets focus
   v <- gets view
   relevant <- extract
   let adj    = adjacent relevant
-      arg    = map toLower $ unwords args -- FIXME: unwords is imperfect here, it might reduce multiple spaces to one space in a node name.
       byName = filter ((arg `isInfixOf`) . map toLower . snd) adj
       byNum  = case maybeRead arg :: Maybe Int of
                  Nothing -> []
@@ -279,9 +274,8 @@ cmdRename _ [] = do
   io $ putStrLn $ "Enter new title for the view node (currently '" ++ title v ++"'): "
   s <- io $ getLine
   cmdRename undefined [s]
-cmdRename _ xs = do
+cmdRename _ s = do
   v <- gets view
-  let s = unwords xs
   putNode $ v { title = s }
   gmCommit
   v' <- gets view
@@ -308,9 +302,8 @@ cmdNew _ [] = do
   io $ putStrLn $ "Enter the title for the new node: "
   newTitle <- io getLine
   cmdNew undefined [newTitle]
-cmdNew _ as = do
+cmdNew _ newTitle = do
   f <- gets focus
-  let newTitle = unwords as
   putNode $ Node { _id = 0, title = newTitle, text = Nothing, adjacent = [(_id f, title f)] }
   f' <- gets focus
   let newID = maximum . map fst . adjacent $ f'
