@@ -342,12 +342,14 @@ newDB db = do
 
 start :: FilePath -> IO ()
 start db = do
-  putStrLn $ "Graphmind 0.0.1 (c) Braden Shepherdson 2009"
+  putStrLn version
   c <- connectSqlite3 db
   let fakeNode = Node { _id = -1, title = "Fake Node", text = Nothing, adjacent = [] }
   runGM loop (GMState { conn = c, view = fakeNode, focus = fakeNode })
 
 
+version :: String
+version = "Graphmind 0.0.2 (c) Braden Shepherdson 2009"
 
 -- the main loop
 loop :: GM ()
@@ -372,6 +374,7 @@ main = do
   case args of
     [] -> usage
     ("--help":_) -> usage
+    ("--version":_) -> putStrLn version
     ("-h":_) -> usage
     ("--new":db:_) -> newDB db
     (db:[]) -> start db
