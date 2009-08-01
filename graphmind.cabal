@@ -29,6 +29,7 @@ executable graphmind
     main-is:            Graphmind.hs
     other-modules:      Graphmind.Types
                         Graphmind.Backend
+                        Graphmind.Help
 
     ghc-options:        -funbox-strict-fields -Wall -O2
     ghc-prof-options:   -prof -auto-all
