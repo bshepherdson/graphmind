@@ -1,3 +1,17 @@
+----------------------------------------------------------------------------
+-- |
+-- Module      :  Graphmind.Sessions
+-- Copyright   :  (c) Braden Shepherdson 2009
+-- License     :  BSD3
+--
+-- Maintainer  :  Braden.Shepherdson@gmail.com
+-- Stability   :  experimental
+-- Portability :  portable
+--
+-- Session handling for Graphmind.
+--
+-----------------------------------------------------------------------------
+
 module Graphmind.Sessions (
      checkSession
     ,newSession
@@ -32,6 +46,7 @@ newSession :: Connection -> UserId -> CGI ()
 newSession c u = do
   r <- liftIO randomIO :: CGI Int
   let hash = showDigest . sha1 . B.pack $ show u ++ "__" ++ show r
+  liftIO $ run c "DELETE FROM Session WHERE user = ?" [toSql u]
   liftIO $ run c "INSERT INTO Session (user,hash) VALUES (?,?)" [toSql u, toSql hash]
   setCookie $ (newCookie "graphmind_session" hash) { cookiePath = Nothing }
 
