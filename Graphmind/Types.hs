@@ -15,7 +15,7 @@
 -----------------------------------------------------------------------------
 
 module Graphmind.Types (
-  module Control.Monad.State
+  module Control.Monad.Reader
  ,module Control.Applicative
  ,Node(..)
  ,NodeId
@@ -23,17 +23,20 @@ module Graphmind.Types (
  ,GMState(..)
  ,runGM
  ,io
- ,Command
+ ,UserId
  ,showNodeList
 ) where
 
-import Control.Monad.State
+import Control.Monad.Reader
 import Control.Applicative
 
 import Database.HDBC ()
 import Database.HDBC.Sqlite3
 
+import Network.FastCGI
+
 type NodeId = Int
+type UserId = Int
 
 -- | the basic Node type used to 
 data Node = Node { 
@@ -74,16 +77,15 @@ data GMState = GMState {
 }
 
 -- | The Graphmind Monad
-newtype GM a = GM (StateT GMState IO a)
-  deriving (Functor, Monad, MonadState GMState, MonadIO)
+newtype GM a = GM (ReaderT GMState (CGIT IO) a)
+  deriving (Functor, Monad, MonadReader GMState, MonadIO)
 
-runGM :: forall a . GM a -> GMState -> IO a
-runGM (GM a) s = evalStateT a s
+runGM :: forall a . GM a -> GMState -> CGIT IO a
+runGM (GM a) s = runReaderT a s
 
 io :: forall a. IO a -> GM a
 io = liftIO
 
-
-
-type Command = String -> String -> GM ()
+cgi :: forall a. CGI a -> GM a
+cgi = GM . lift
 

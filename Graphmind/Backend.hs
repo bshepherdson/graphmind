@@ -22,7 +22,6 @@ module Graphmind.Backend
   ,gmCommit
   ,updateFocus
   ,updateView
-  ,schema
   ,searchNodes
   ,orphanedNodes
 )
@@ -139,21 +138,4 @@ orphanedNodes = do
   rs <- gmQuickQuery "SELECT _id, title FROM Node WHERE _id NOT IN (SELECT DISTINCT node_from FROM Link)" []
   return $ map (\[i,t] -> (fromSql i, fromSql t)) rs
 
-
-
-schema :: String
-schema = unlines [
-  "CREATE TABLE Node ("
-      ,"_id           INTEGER NOT NULL PRIMARY KEY"
-     ,",title         VARCHAR(100) NOT NULL"
-     ,",text          TEXT"
-     ,");"
-  ,""
-  ,""
-  ,"CREATE TABLE Link ("
-      ,"_id           INTEGER NOT NULL PRIMARY KEY"
-     ,",node_from     INTEGER NOT NULL REFERENCES Node (_id)"
-     ,",node_to       INTEGER NOT NULL REFERENCES Node (_id)"
-     ,");"
-  ]
 

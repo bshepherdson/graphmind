@@ -12,10 +12,8 @@ description:
     events, projects, schedule items, bugs, pet peeves. The structure need
     not be hierarchical, cycles are not only allowed but encouraged.
 
-    Currently Graphmind has only a command-line interface. Plans for a web
-    interface exist but are likely part of the distant future.
-
-    Graphmind is cross-platform, though it requires a working Sqlite3.
+    Graphmind is now growing a FastCGI-based web interface. Soon it will be
+    running online for your mind mapping pleasures.
 category:           Applications
 license:            BSD3
 license-file:       LICENSE
@@ -29,10 +27,13 @@ executable graphmind
     main-is:            Graphmind.hs
     other-modules:      Graphmind.Types
                         Graphmind.Backend
-                        Graphmind.Help
+                        Graphmind.Sessions
+                        Graphmind.Web
 
     ghc-options:        -funbox-strict-fields -Wall -O2
     ghc-prof-options:   -prof -auto-all
     build-depends:      base >= 3 && < 4, HDBC >= 2.1, HDBC-sqlite3 >= 2.1,
-                        mtl, process, containers
+                        mtl, process, containers, fastcgi >= 3001, xhtml >= 3000.2,
+                        SHA >= 1.4
+
 
