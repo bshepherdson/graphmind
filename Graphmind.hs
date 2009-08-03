@@ -68,6 +68,7 @@ commands = M.fromList [
   ,("help"     , cmdHelp)
   ,("search"   , cmdSearch)
   ,("goto"     , cmdGoto)
+  ,("orphans"  , cmdOrphans)
   ]
 
 
@@ -340,6 +341,14 @@ cmdGoto _ arg = do
          Just n' -> do
            modify $ \s -> s { view = n' }
            io . putStrLn $ "View node changed to " ++ title n' ++ "."
+
+
+cmdOrphans :: Command 
+cmdOrphans _ _ = do
+  ns <- orphanedNodes 
+  modify $ \s -> s { list = ns }
+  io . putStrLn $ "Orphaned nodes:"
+  io . putStrLn . unlines . showNodeList $ ns
 
 -----------------------------------------------------------------------------------------
 -- main and company

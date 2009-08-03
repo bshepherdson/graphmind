@@ -24,6 +24,7 @@ module Graphmind.Backend
   ,updateView
   ,schema
   ,searchNodes
+  ,orphanedNodes
 )
 where
 
@@ -128,6 +129,14 @@ searchNodes :: String -> GM [(NodeId, String)]
 searchNodes s = do
   let str = "%" ++ s ++ "%"
   rs <- gmQuickQuery "SELECT _Id, title FROM Node WHERE title LIKE ? OR (text NOT NULL AND text LIKE ?)" [toSql str, toSql str]
+  return $ map (\[i,t] -> (fromSql i, fromSql t)) rs
+
+
+-- | Returns all orphaned nodes -- that is, all nodes without neighbours.
+-- This can still lose a component subgraph that's disconnected from the rest.
+orphanedNodes :: GM [(NodeId, String)]
+orphanedNodes = do
+  rs <- gmQuickQuery "SELECT _id, title FROM Node WHERE _id NOT IN (SELECT DISTINCT node_from FROM Link)" []
   return $ map (\[i,t] -> (fromSql i, fromSql t)) rs
 
 
