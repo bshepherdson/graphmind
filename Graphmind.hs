@@ -66,6 +66,8 @@ commands = M.fromList [
   ,("swap"     , cmdSwap)
   ,("new"      , cmdNew)
   ,("help"     , cmdHelp)
+  ,("search"   , cmdSearch)
+  ,("goto"     , cmdGoto)
   ]
 
 
@@ -273,7 +275,7 @@ cmdRename _ [] = do
   v <- gets view
   io $ putStrLn $ "Enter new title for the view node (currently '" ++ title v ++"'): "
   s <- io $ getLine
-  cmdRename undefined [s]
+  cmdRename undefined s
 cmdRename _ s = do
   v <- gets view
   putNode $ v { title = s }
@@ -301,7 +303,7 @@ cmdNew :: Command
 cmdNew _ [] = do
   io $ putStrLn $ "Enter the title for the new node: "
   newTitle <- io getLine
-  cmdNew undefined [newTitle]
+  cmdNew undefined newTitle
 cmdNew _ newTitle = do
   f <- gets focus
   putNode $ Node { _id = 0, title = newTitle, text = Nothing, adjacent = [(_id f, title f)] }
@@ -310,6 +312,34 @@ cmdNew _ newTitle = do
   new <- fromJust <$> getNode newID
   modify $ \s -> s { view = new }
   io $ putStrLn $ "Changing view to new node '" ++ newTitle ++ "'."
+
+
+-- | Print and store in 'list' a list of nodes matching the provided pattern.
+-- The search should be case-insensitive infix.
+cmdSearch :: Command
+cmdSearch _ []  = io . putStrLn $ "You must provide something to search for."
+cmdSearch _ arg = do
+  ns <- searchNodes arg
+  modify $ \s -> s { list = ns }
+  io . putStrLn . unlines . showNodeList $ ns
+
+
+-- | Without arguments, prints the goto list. With argument, goes to that number.
+cmdGoto :: Command
+cmdGoto _ []  = io (putStrLn "Current search results:") >> gets list >>= io . putStrLn . unlines . showNodeList 
+cmdGoto _ arg = do
+  ns <- gets list
+  case maybeRead arg of
+    Nothing -> io . putStrLn $ "Couldn't read a number in the input '" ++ arg ++ "'."
+    Just x  |  x <= 0 || x > length ns -> io . putStrLn $ "Index " ++ show x ++ " not found in the list."
+            |  otherwise               -> do
+       let (i,_) = ns !! (x-1)
+       n <- getNode i
+       case n of
+         Nothing -> io . putStrLn $ "Couldn't find that node, are the search results out of date?"
+         Just n' -> do
+           modify $ \s -> s { view = n' }
+           io . putStrLn $ "View node changed to " ++ title n' ++ "."
 
 -----------------------------------------------------------------------------------------
 -- main and company
@@ -338,7 +368,7 @@ start db = do
   putStrLn version
   c <- connectSqlite3 db
   let fakeNode = Node { _id = -1, title = "Fake Node", text = Nothing, adjacent = [] }
-  runGM loop (GMState { conn = c, view = fakeNode, focus = fakeNode })
+  runGM loop (GMState { conn = c, view = fakeNode, focus = fakeNode, list = [] })
 
 
 version :: String

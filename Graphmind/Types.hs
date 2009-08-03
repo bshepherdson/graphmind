@@ -24,6 +24,7 @@ module Graphmind.Types (
  ,runGM
  ,io
  ,Command
+ ,showNodeList
 ) where
 
 import Control.Monad.State
@@ -51,13 +52,15 @@ instance Show Node where
     , ""
     , "Adjacent nodes:"
     ]
-    ++ map showAdj (zip [1..] (map snd a))
+    ++ showNodeList a
     ++ case x of
          Nothing -> []
          Just x' -> ["", x' ]
    where t' = "   " ++ t ++ "   "
-         showAdj :: (Int,String) -> String
-         showAdj (n,y) = show n ++ ". " ++ y
+
+
+showNodeList :: [(NodeId, String)] -> [String]
+showNodeList = map (\(n,y) -> show n ++ ". " ++ y) . zip [1::Int ..] . map snd
 
 instance Eq Node where
   (Node x _ _ _) == (Node y _ _ _) = x == y -- equality is just based on IDs
@@ -67,6 +70,7 @@ data GMState = GMState {
     conn    :: !Connection
    ,view    :: !Node
    ,focus   :: !Node
+   ,list    :: ![(NodeId,String)]
 }
 
 -- | The Graphmind Monad

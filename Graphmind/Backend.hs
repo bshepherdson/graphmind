@@ -23,6 +23,7 @@ module Graphmind.Backend
   ,updateFocus
   ,updateView
   ,schema
+  ,searchNodes
 )
 where
 
@@ -119,6 +120,15 @@ updateNode new old = do
   mapM_ (\(i,_) -> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, toSql $ _id new]
                 >> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ _id new, toSql $ i])
         added
+
+
+
+-- | Given a search string, returns all nodes whose title or body text matches
+searchNodes :: String -> GM [(NodeId, String)]
+searchNodes s = do
+  let str = "%" ++ s ++ "%"
+  rs <- gmQuickQuery "SELECT _Id, title FROM Node WHERE title LIKE ? OR (text NOT NULL AND text LIKE ?)" [toSql str, toSql str]
+  return $ map (\[i,t] -> (fromSql i, fromSql t)) rs
 
 
 
