@@ -1,5 +1,5 @@
 name:               graphmind
-version:            0.0.2
+version:            0.0.3
 homepage:           http://code.haskell.org/~shepheb/graphmind
 synopsis:           A mind mapping tool based on undirected graphs
 description:

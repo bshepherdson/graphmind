@@ -381,7 +381,7 @@ start db = do
 
 
 version :: String
-version = "Graphmind 0.0.2 (c) Braden Shepherdson 2009"
+version = "Graphmind 0.0.3 (c) Braden Shepherdson 2009"
 
 -- the main loop
 loop :: GM ()
