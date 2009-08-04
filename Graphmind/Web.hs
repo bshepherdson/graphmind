@@ -1,3 +1,5 @@
+{-# LANGUAGE ExistentialQuantification #-}
+
 ----------------------------------------------------------------------------
 -- |
 -- Module      :  Graphmind.Web
@@ -33,7 +35,7 @@ import qualified Data.Map as M
 import qualified Data.ByteString.Lazy.Char8 as B
 
 import Network.FastCGI
-import Text.XHtml
+import Text.XHtml hiding (title,text)
 import Data.Digest.Pure.SHA
 
 
@@ -51,12 +53,18 @@ pgTemplate t b = do
              h1 << t +++ err +++ b
            )
 
-pg :: Html -> CGI CGIResult
-pg = output . showHtml
+showPg :: Html -> CGI CGIResult
+showPg = output . showHtml
 
+
+pg :: CGI Html -> CGI CGIResult
+pg h = h >>= showPg
 
 s2h = stringToHtml
 
+
+nodeLinks :: Node -> [HotLink]
+nodeLinks n = map (\(i,t) -> hotlink ("/graphmind?pg=View&view=" ++ show i) (s2h t)) (adjacent n)
 
 -----------------------------------------------------------------------------
 -- error handling
@@ -113,12 +121,36 @@ preLogin c = do
 -- pg handlers
 -----------------------------------------------------------------------------
 
+--type Pg = GM CGIResult
 pgMap :: M.Map String Pg
 pgMap = M.fromList []
 
 
 pgView :: Pg
-pgView = undefined
+pgView = do
+  (GMState c u) <- ask
+  a <- getAnchor
+  i <- cgi $ readInput "view"
+  v <- case i of 
+         Just n  -> getNode n >>= \n' -> case n' of
+                      Nothing   -> cgi (setError $ "Node " ++ show n ++ " not found.") >> getAnchor
+                      Just node -> return node
+         Nothing -> getAnchor
+  cgi $ pg $ pgTemplate (title v) $
+    h3 << s2h "Links"
+    +++ unordList (nodeLinks v)
+    +++ case text v of
+          Nothing -> noHtml
+          Just t  -> h3 << s2h "text" +++ paragraph << s2h t
+    +++ anchorWidget a v
+  
+ where anchorWidget a n 
+         | a == n    = h3 << s2h "Anchor" +++ paragraph << s2h "Viewing anchor now."
+         | otherwise = h3 << s2h "Anchor" +++ paragraph << bold << s2h (title a) +++ unordList [
+                   hotlink ("/graphmind?pre=MoveAnchor&pg=View&anchor=" ++ show (_id a) ++ "&view=" ++ show (_id n)) (s2h "Move anchor here")
+                  ,hotlink ("/graphmind?pre=Swap&pg=View&view=" ++ show (id n)) (s2h "Swap")
+                  ]
+
 
 
 -- | Display the login page.
@@ -126,7 +158,7 @@ pgView = undefined
 -- This pg is special, it's not in GM since there's no UserId yet.
 
 pgLogin :: CGI CGIResult
-pgLogin = pg =<< (pgTemplate "Graphmind Login" $ 
+pgLogin = pg $ (pgTemplate "Graphmind Login" $ 
   form ! [action "/graphmind?pre=Login&pg=View", method "POST"]
     << table << tbody
       << (tr << (td << s2h "Username:" +++ td << s2h "Password:")

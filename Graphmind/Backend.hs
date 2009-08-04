@@ -16,50 +16,31 @@
 
 module Graphmind.Backend 
 (
-{-
    getNode
   ,putNode
   ,createNode
-  ,gmCommit
-  ,updateFocus
-  ,updateView
+  --,getView
+  ,getAnchor
   ,searchNodes
   ,orphanedNodes
--}
 )
 where
 
-{-
 import Database.HDBC
 --import Database.HDBC.Sqlite3
 
 import Data.List
 import Data.Function (on)
+import Data.Maybe (fromJust)
 
 import Graphmind.Types
 
 -- convenience function to extract the Connection and lift from IO
 gmQuickQuery :: String -> [SqlValue] -> GM [[SqlValue]]
-gmQuickQuery sql params = gets conn >>= \c -> io (quickQuery' c sql params)
+gmQuickQuery sql params = asks conn >>= \c -> io (quickQuery' c sql params)
 
 gmRun :: String -> [SqlValue] -> GM ()
-gmRun sql params = gets conn >>= \c -> io (run c sql params) >> return ()
-
-gmCommit :: GM ()
-gmCommit = gets conn >>= io . commit
-
-
-update :: (GM Node) -> (Node -> GM ()) -> GM Node
-update g p = do
-  n <- g
-  fromDB <- getNode $ _id n
-  case fromDB of
-    Nothing -> return n -- do nothing, return the cached copy.
-    Just n' -> p n' >> return n'
-
-updateFocus, updateView :: GM Node
-updateFocus = update (gets focus) (\f -> modify $ \s -> s { focus = f })
-updateView  = update (gets view)  (\v -> modify $ \s -> s { view  = v })
+gmRun sql params = asks conn >>= \c -> io (run c sql params) >> return ()
 
 
 -- | Given a node ID, retrieve it and return a Node.
@@ -78,6 +59,27 @@ getNode n = do
 adjacentNodes :: NodeId -> GM [[SqlValue]]
 adjacentNodes n = gmQuickQuery "SELECT Node._id, Node.title FROM Link INNER JOIN Node ON Link.node_to = Node._id WHERE Link.node_from = ?" [toSql n]
 
+
+
+getSpecialNode :: String -> GM Node
+getSpecialNode s = do
+  u <- asks user
+  rs <- gmQuickQuery ("SELECT " ++ s ++ " FROM User WHERE _id = ?") [toSql u]
+  case rs of
+    [sql] -> fromJust <$> getNode (fromSql $ sql !! 0)
+    _     -> error $ "Couldn't find " ++ s ++ " node."
+
+
+-- | Gets the user's 'view' node. It must exist, so no Maybe.
+--getView :: GM Node
+--getView = getSpecialNode "view"
+
+-- | Gets the user's 'anchor' node. It must exist, so no Maybe.
+getAnchor :: GM Node
+getAnchor = getSpecialNode "anchor"
+
+
+
 -- | Given a Node, writes it to the database. If the node exists but differs
 -- from the one stored in the database, a minimally invasive update is performed.
 --
@@ -91,9 +93,6 @@ putNode new = do
   case old of
     Nothing -> createNode new
     Just o  -> updateNode new o
-  updateFocus
-  updateView
-  return ()
 
 
 -- | Creates a new node.
@@ -130,7 +129,7 @@ updateNode new old = do
 searchNodes :: String -> GM [(NodeId, String)]
 searchNodes s = do
   let str = "%" ++ s ++ "%"
-  rs <- gmQuickQuery "SELECT _Id, title FROM Node WHERE title LIKE ? OR (text NOT NULL AND text LIKE ?)" [toSql str, toSql str]
+  rs <- gmQuickQuery "SELECT _id, title FROM Node WHERE title LIKE ? OR (text NOT NULL AND text LIKE ?)" [toSql str, toSql str]
   return $ map (\[i,t] -> (fromSql i, fromSql t)) rs
 
 
@@ -141,4 +140,3 @@ orphanedNodes = do
   rs <- gmQuickQuery "SELECT _id, title FROM Node WHERE _id NOT IN (SELECT DISTINCT node_from FROM Link)" []
   return $ map (\[i,t] -> (fromSql i, fromSql t)) rs
 
--}

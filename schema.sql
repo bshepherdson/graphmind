@@ -3,7 +3,8 @@ CREATE TABLE User (
     _id           INTEGER NOT NULL PRIMARY KEY
    ,username      VARCHAR(50) NOT NULL
    ,password      CHAR(40) NOT NULL
-   ,focus         INTEGER NOT NULL REFERENCES Node (_id)
+   --,view          INTEGER NOT NULL REFERENCES Node (_id)
+   ,anchor        INTEGER NOT NULL REFERENCES Node (_id)
    );
 
 CREATE TABLE Session (
