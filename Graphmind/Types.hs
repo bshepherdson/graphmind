@@ -23,8 +23,11 @@ module Graphmind.Types (
  ,GMState(..)
  ,runGM
  ,io
+ ,cgi
  ,UserId
  ,showNodeList
+ ,Pre
+ ,Pg
 ) where
 
 import Control.Monad.Reader
@@ -37,6 +40,9 @@ import Network.FastCGI
 
 type NodeId = Int
 type UserId = Int
+
+type Pre = GM ()
+type Pg  = GM CGIResult
 
 -- | the basic Node type used to 
 data Node = Node { 
@@ -71,9 +77,7 @@ instance Eq Node where
 
 data GMState = GMState { 
     conn    :: !Connection
-   ,view    :: !Node
-   ,focus   :: !Node
-   ,list    :: ![(NodeId,String)]
+   ,user    :: !UserId
 }
 
 -- | The Graphmind Monad

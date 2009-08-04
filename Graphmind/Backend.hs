@@ -16,6 +16,7 @@
 
 module Graphmind.Backend 
 (
+{-
    getNode
   ,putNode
   ,createNode
@@ -24,9 +25,11 @@ module Graphmind.Backend
   ,updateView
   ,searchNodes
   ,orphanedNodes
+-}
 )
 where
 
+{-
 import Database.HDBC
 --import Database.HDBC.Sqlite3
 
@@ -138,4 +141,4 @@ orphanedNodes = do
   rs <- gmQuickQuery "SELECT _id, title FROM Node WHERE _id NOT IN (SELECT DISTINCT node_from FROM Link)" []
   return $ map (\[i,t] -> (fromSql i, fromSql t)) rs
 
-
+-}
