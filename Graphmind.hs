@@ -62,7 +62,7 @@ cgiMain c = do
 
 main :: IO ()
 main = do
-  c <- connectSqlite3 "/home/braden/haskell/graphmind/test.db"
-  runFastCGI $ cgiMain c
+  c <- connectSqlite3 "/tmp/graphmind.db"
+  runFastCGIorCGI $ cgiMain c
 
 
