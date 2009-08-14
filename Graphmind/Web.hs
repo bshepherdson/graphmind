@@ -163,12 +163,11 @@ pgView = do
 -- This pg is special, it's not in GM since there's no UserId yet.
 
 pgLogin :: CGI CGIResult
-pgLogin = pg $ (pgTemplate "Graphmind Login" $ 
-  form ! [action "/graphmind?pre=Login&pg=View", method "POST"]
-    << table << tbody
-      << (tr << (td << s2h "Username:" +++ td << s2h "Password:")
-      +++ tr << (td << textfield "" ! [size "30", maxlength 50, name "gmUser"]
-             +++ td << password ""  ! [size "30", maxlength 50, name "gmPwd"])
+pgLogin = pg $ pgTemplate "Graphmind Login" $ 
+  form ! [action $ target "pre=Login&pg=View", method "POST"]
+    << (table << tbody
+      << (tr << (td << s2h "Username:" +++ td << textfield "" ! [size "30", maxlength 50, name "gmUser"])
+      +++ tr << (td << s2h "Password:" +++ td << password ""  ! [size "30", maxlength 50, name "gmPwd"])
       )
-    +++ submit "Log In" "login")
+    +++ submit "login" "Log In")
 
