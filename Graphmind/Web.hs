@@ -23,6 +23,7 @@ module Graphmind.Web (
   ,pgLogin
 
   ,target
+  ,logmsg
 ) where
 
 import Graphmind.Types
@@ -35,6 +36,7 @@ import Database.HDBC.Sqlite3
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy.Char8 as B
+import Data.Time
 
 import Network.FastCGI
 import Text.XHtml hiding (title,text,target)
@@ -71,6 +73,12 @@ nodeLinks n = map (\(i,t) -> hotlink (target $ "pg=View&view=" ++ show i) (s2h t
 target :: String -> String
 target s = "/graphmind.fcgi?" ++ s
 
+
+logmsg :: String -> IO ()
+logmsg s = do
+  t <- getCurrentTime
+  appendFile "/var/log/graphmind.log" $ "[" ++ show t ++ "] " ++ s ++ "\n"
+
 -----------------------------------------------------------------------------
 -- error handling
 -----------------------------------------------------------------------------
@@ -105,13 +113,18 @@ preLogin c = do
   username <- getInput "gmUser"
   password <- getInput "gmPwd"
 
+  liftIO $ logmsg $ "Running preLogin..."
   case (username,password) of
     (Just u, Just p) -> do
+      liftIO $ logmsg $ "Got user '" ++ u ++ "' and password '" ++ p ++ "'."
       let hash = showDigest . sha1 . B.pack $ p
-      rs <- liftIO $ quickQuery' c "SELECT _id FROM User WHERE username = ?, password = ?" [toSql u, toSql hash]
+      liftIO $ logmsg $ "Got hash of '" ++ hash ++ "'."
+      rs <- liftIO $ quickQuery' c "SELECT _id FROM User WHERE username = ? AND password = ?" [toSql u, toSql hash]
       case rs of
         [[uid]] -> do
+          liftIO $ logmsg $ "Found userid " ++ show (fromSql uid :: Int) ++ "."
           newSession c $ fromSql uid
+          setHeader "Content-type" "text/html"
           redirect (target "pg=View")
         _       -> do
           setError "The username or password provided is incorrect. Please try again."

@@ -34,6 +34,6 @@ executable graphmind
     ghc-prof-options:   -prof -auto-all
     build-depends:      base >= 3 && < 4, HDBC >= 2.1, HDBC-sqlite3 >= 2.1,
                         mtl, process, containers, fastcgi >= 3001, xhtml >= 3000.2,
-                        SHA >= 1.4, bytestring, random
+                        SHA >= 1.4, bytestring, random, time
 
 

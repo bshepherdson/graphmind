@@ -35,10 +35,13 @@ import Database.HDBC.Sqlite3
 checkSession :: Connection -> CGI (Maybe UserId)
 checkSession c = do
   cookie <- getCookie "graphmind_session"
-  rs     <- liftIO $ quickQuery' c "SELECT user FROM Session WHERE hash = ?" [toSql cookie]
-  case rs of
-    [[u]] -> return $ Just $ fromSql u
-    _   -> return Nothing
+  case cookie of
+    Nothing -> return Nothing
+    Just gs -> do
+       rs     <- liftIO $ quickQuery' c "SELECT user FROM Session WHERE hash = ?" [toSql gs]
+       case rs of
+         [[u]] -> return $ Just $ fromSql u
+         _     -> return Nothing
 
 
 -- | Can be used after login or registration.
