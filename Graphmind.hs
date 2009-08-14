@@ -39,8 +39,8 @@ graphmind = do
   pgName  <- cgi $ fromMaybe "View"      <$> getInput "pg"
 
   case (preName,pgName) of
-    ("Login",_) -> cgi $ redirect "/graphmind?pg=View" -- redirect, logged-in people shouldn't be logging in again
-    (_,"Login") -> cgi $ redirect "/graphmind?pg=View"
+    ("Login",_) -> cgi $ redirect (target "pg=View") -- redirect, logged-in people shouldn't be logging in again
+    (_,"Login") -> cgi $ redirect (target "pg=View")
     _           -> do
       let pre = fromMaybe (return ()) $ M.lookup preName preMap
           pg  = fromMaybe pgView      $ M.lookup pgName  pgMap

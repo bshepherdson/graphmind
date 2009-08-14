@@ -21,6 +21,8 @@ module Graphmind.Web (
   ,pgMap
   ,pgView
   ,pgLogin
+
+  ,target
 ) where
 
 import Graphmind.Types
@@ -35,7 +37,7 @@ import qualified Data.Map as M
 import qualified Data.ByteString.Lazy.Char8 as B
 
 import Network.FastCGI
-import Text.XHtml hiding (title,text)
+import Text.XHtml hiding (title,text,target)
 import Data.Digest.Pure.SHA
 
 
@@ -64,7 +66,10 @@ s2h = stringToHtml
 
 
 nodeLinks :: Node -> [HotLink]
-nodeLinks n = map (\(i,t) -> hotlink ("/graphmind?pg=View&view=" ++ show i) (s2h t)) (adjacent n)
+nodeLinks n = map (\(i,t) -> hotlink (target $ "pg=View&view=" ++ show i) (s2h t)) (adjacent n)
+
+target :: String -> String
+target s = "/graphmind.fcgi?" ++ s
 
 -----------------------------------------------------------------------------
 -- error handling
@@ -107,13 +112,13 @@ preLogin c = do
       case rs of
         [[uid]] -> do
           newSession c $ fromSql uid
-          redirect "/graphmind?pg=View"
+          redirect (target "pg=View")
         _       -> do
           setError "The username or password provided is incorrect. Please try again."
-          redirect "/graphmind?pg=Login"
+          redirect (target "pg=Login")
     _ -> do
       setError "You must provide a username and password."
-      redirect "/graphmind?pg=Login"
+      redirect (target "pg=Login")
 
 
 
@@ -147,8 +152,8 @@ pgView = do
  where anchorWidget a n 
          | a == n    = h3 << s2h "Anchor" +++ paragraph << s2h "Viewing anchor now."
          | otherwise = h3 << s2h "Anchor" +++ paragraph << bold << s2h (title a) +++ unordList [
-                   hotlink ("/graphmind?pre=MoveAnchor&pg=View&anchor=" ++ show (_id a) ++ "&view=" ++ show (_id n)) (s2h "Move anchor here")
-                  ,hotlink ("/graphmind?pre=Swap&pg=View&view=" ++ show (id n)) (s2h "Swap")
+                   hotlink (target $ "pre=MoveAnchor&pg=View&anchor=" ++ show (_id a) ++ "&view=" ++ show (_id n)) (s2h "Move anchor here")
+                  ,hotlink (target $ "pre=Swap&pg=View&view=" ++ show (id n)) (s2h "Swap")
                   ]
 
 
