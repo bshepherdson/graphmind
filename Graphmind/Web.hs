@@ -23,7 +23,6 @@ module Graphmind.Web (
   ,pgLogin
 
   ,target
-  ,logmsg
 ) where
 
 import Graphmind.Types
@@ -36,7 +35,6 @@ import Database.HDBC.Sqlite3
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy.Char8 as B
-import Data.Time
 
 import Network.FastCGI
 import Text.XHtml hiding (title,text,target)
@@ -74,11 +72,6 @@ target :: String -> String
 target s = "/graphmind.fcgi?" ++ s
 
 
-logmsg :: String -> IO ()
-logmsg s = do
-  t <- getCurrentTime
-  appendFile "/var/log/graphmind.log" $ "[" ++ show t ++ "] " ++ s ++ "\n"
-
 -----------------------------------------------------------------------------
 -- error handling
 -----------------------------------------------------------------------------
@@ -103,12 +96,13 @@ getError = do
 -----------------------------------------------------------------------------
 
 
+-- deliberately does not include preLogin
 preMap :: M.Map String Pre
 preMap = M.fromList []
 
 
 -- | Special, like 'pgLogin'.
-preLogin :: Connection -> CGI CGIResult
+preLogin :: Connection -> CGI (Maybe UserId)
 preLogin c = do
   username <- getInput "gmUser"
   password <- getInput "gmPwd"
@@ -124,14 +118,17 @@ preLogin c = do
         [[uid]] -> do
           liftIO $ logmsg $ "Found userid " ++ show (fromSql uid :: Int) ++ "."
           newSession c $ fromSql uid
-          setHeader "Content-type" "text/html"
-          redirect (target "pg=View")
+          liftIO $ commit c
+          --gmRedirect (target "pg=View")
+          return . Just . fromSql $ uid
         _       -> do
           setError "The username or password provided is incorrect. Please try again."
-          redirect (target "pg=Login")
+          --redirect (target "pg=Login")
+          return Nothing
     _ -> do
       setError "You must provide a username and password."
-      redirect (target "pg=Login")
+      --redirect (target "pg=Login")
+      return Nothing
 
 
 
@@ -140,8 +137,9 @@ preLogin c = do
 -----------------------------------------------------------------------------
 
 --type Pg = GM CGIResult
+-- deliberately does not include pgLogin
 pgMap :: M.Map String Pg
-pgMap = M.fromList []
+pgMap = M.fromList [("View",pgView)]
 
 
 pgView :: Pg

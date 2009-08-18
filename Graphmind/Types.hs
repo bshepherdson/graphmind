@@ -28,6 +28,9 @@ module Graphmind.Types (
  ,showNodeList
  ,Pre
  ,Pg
+
+ ,logmsg
+ ,gmRedirect
 ) where
 
 import Control.Monad.Reader
@@ -35,6 +38,8 @@ import Control.Applicative
 
 import Database.HDBC ()
 import Database.HDBC.Sqlite3
+
+import Data.Time
 
 import Network.FastCGI
 
@@ -93,3 +98,14 @@ io = liftIO
 cgi :: forall a. CGI a -> GM a
 cgi = GM . lift
 
+
+
+-- debugging
+
+logmsg :: String -> IO ()
+logmsg s = do
+  t <- getCurrentTime
+  appendFile "/var/log/graphmind.log" $ "[" ++ show t ++ "] " ++ s ++ "\n"
+
+gmRedirect :: String -> CGI CGIResult
+gmRedirect t = setHeader "Location" t >> outputNothing

@@ -39,9 +39,10 @@ graphmind = do
   pgName  <- cgi $ fromMaybe "View"      <$> getInput "pg"
 
   case (preName,pgName) of
-    ("Login",_) -> cgi $ redirect (target "pg=View") -- redirect, logged-in people shouldn't be logging in again
-    (_,"Login") -> cgi $ redirect (target "pg=View")
+    --("Login",_) -> cgi $ redirect (target "pg=View") -- redirect, logged-in people shouldn't be logging in again
+    --(_,"Login") -> cgi $ redirect (target "pg=View")
     _           -> do
+      -- note that this will ignore preLogin and pgLogin, since those don't appear in the maps.
       let pre = fromMaybe (return ()) $ M.lookup preName preMap
           pg  = fromMaybe pgView      $ M.lookup pgName  pgMap
   
@@ -52,17 +53,28 @@ graphmind = do
 
 cgiMain :: Connection -> CGI CGIResult
 cgiMain c = do
+  liftIO $ logmsg "Begin session"
   s <- checkSession c
   pre <- getInput "pre"
   case (s,pre) of
-    (Nothing, Just "Login") -> preLogin c
-    (Nothing, _)            -> pgLogin
+    (Nothing, Just "Login") -> do 
+        liftIO $ logmsg "srsly"
+        res <- preLogin c
+        liftIO $ logmsg $ "preLogin result: " ++ show res
+        case res of
+          Just u  -> runGM graphmind (GMState c u)
+          Nothing -> pgLogin
+    (Nothing, _)            -> liftIO (logmsg "onoes") >> pgLogin
     (Just u, _)             -> runGM graphmind (GMState c u)
 
 
 main :: IO ()
 main = do
   c <- connectSqlite3 "/tmp/graphmind.db"
+  --runFastCGIorCGI $ dumpResult $ cgiMain c
   runFastCGIorCGI $ cgiMain c
 
+
+dumpResult :: CGI CGIResult -> CGI CGIResult
+dumpResult act = act >>= \res -> liftIO (logmsg $ show res) >> return res
 
