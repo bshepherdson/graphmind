@@ -32,7 +32,6 @@ import Graphmind.Sessions
 import Database.HDBC
 import Database.HDBC.Sqlite3
 
-import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy.Char8 as B
 
@@ -62,6 +61,8 @@ showPg = output . showHtml
 pg :: CGI Html -> CGI CGIResult
 pg h = h >>= showPg
 
+
+s2h :: String -> Html
 s2h = stringToHtml
 
 
@@ -105,13 +106,13 @@ preMap = M.fromList []
 preLogin :: Connection -> CGI (Maybe UserId)
 preLogin c = do
   username <- getInput "gmUser"
-  password <- getInput "gmPwd"
+  pswd <- getInput "gmPwd"
 
   liftIO $ logmsg $ "Running preLogin..."
-  case (username,password) of
-    (Just u, Just p) -> do
-      liftIO $ logmsg $ "Got user '" ++ u ++ "' and password '" ++ p ++ "'."
-      let hash = showDigest . sha1 . B.pack $ p
+  case (username,pswd) of
+    (Just u, Just pw) -> do
+      liftIO $ logmsg $ "Got user '" ++ u ++ "' and password '" ++ pw ++ "'."
+      let hash = showDigest . sha1 . B.pack $ pw
       liftIO $ logmsg $ "Got hash of '" ++ hash ++ "'."
       rs <- liftIO $ quickQuery' c "SELECT _id FROM User WHERE username = ? AND password = ?" [toSql u, toSql hash]
       case rs of
@@ -144,7 +145,7 @@ pgMap = M.fromList [("View",pgView)]
 
 pgView :: Pg
 pgView = do
-  (GMState c u) <- ask
+  (GMState _ _) <- ask
   a <- getAnchor
   i <- cgi $ readInput "view"
   v <- case i of 

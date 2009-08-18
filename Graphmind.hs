@@ -20,7 +20,6 @@ module Main (
 ) where
 
 import Graphmind.Types
-import Graphmind.Backend
 import Graphmind.Sessions
 import Graphmind.Web
 
@@ -75,6 +74,6 @@ main = do
   runFastCGIorCGI $ cgiMain c
 
 
-dumpResult :: CGI CGIResult -> CGI CGIResult
-dumpResult act = act >>= \res -> liftIO (logmsg $ show res) >> return res
+--dumpResult :: CGI CGIResult -> CGI CGIResult
+--dumpResult act = act >>= \res -> liftIO (logmsg $ show res) >> return res
 
