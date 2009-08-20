@@ -158,6 +158,8 @@ preMap = M.fromList [
            ("New",preNew)
           ,("Delete",preDelete)
           ,("MoveAnchor",preMoveAnchor)
+          ,("Swap",preSwap)
+          ,("Link",preLink)
           ]
 
 
@@ -194,6 +196,24 @@ preMoveAnchor = do
     Just a  -> io (logmsg $ "Setting anchor to " ++ show a) >> setAnchor a >> io (logmsg $ "Done setting anchor")
 
 
+preSwap :: Pre
+preSwap = do
+  a <- getAnchor
+  v <- gmReadInput "view"
+  case v of
+    Nothing -> return ()
+    Just v' -> do
+      setAnchor v'
+      gmSetInput "view" (show $ _id a)
+  
+
+preLink :: Pre
+preLink = do
+  a <- getAnchor
+  v <- gmReadInput "view"
+  case v of
+    Nothing -> return ()
+    Just v' -> putNode $ a { adjacent = (v', "") : adjacent a }
 
 
 -- | Special, like 'pgLogin'.
