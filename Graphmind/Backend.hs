@@ -98,8 +98,9 @@ putNode new = do
 -- | Creates a new node.
 createNode :: Node -> GM NodeId
 createNode new = do
-  let params = [toSql $ title new, toSql $ text new]
-  gmRun "INSERT INTO Node (title, text) VALUES (?,?)" params
+  uid <- asks user
+  let params = [toSql $ title new, toSql $ text new, toSql uid]
+  gmRun "INSERT INTO Node (title, text, user) VALUES (?,?,?)" params
   rs <- gmQuickQuery "SELECT _id, title, text FROM Node WHERE title = ?" $ take 1 params
   let n = head . last $ rs -- grab the _id. note that this handles multiple same-named nodes
   mapM_ (\(i,_) -> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [n, toSql $ i]

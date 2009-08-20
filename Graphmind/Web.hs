@@ -99,9 +99,9 @@ getView = getNodeFromParamAnchor "view"
 
 getNodeFromParamAnchor :: String -> GM Node
 getNodeFromParamAnchor s = do
-  i <- cgi $ readInput s
+  i <- gmInput s
   case i of 
-    Just n  -> getNode n >>= \n' -> case n' of
+    Just n  -> getNode (read n) >>= \n' -> case n' of
                  Nothing   -> (setErrorThisReq $ "Node " ++ show n ++ " not found.") >> getAnchor
                  Just node -> return node
     Nothing -> getAnchor
@@ -109,7 +109,7 @@ getNodeFromParamAnchor s = do
 
 getNodeIdFromParamAnchor :: String -> GM NodeId
 getNodeIdFromParamAnchor s = do
-  i <- cgi $ readInput s
+  i <- gmInput s
   case i of
     Just n  -> return . read $ n
     Nothing -> _id <$> getAnchor
@@ -159,18 +159,15 @@ preMap = M.fromList [("New",preNew)]
 preNew :: Pre
 preNew = do
   parent <- getNodeIdFromParamAnchor "parent"
-  io . logmsg $ "preNew. parent = " ++ show parent
   fTitle <- fromMaybe "Untitled Node" <$> gmInput "title"
   fText  <- gmInput "text" >>= \m -> case m of
                Nothing -> return Nothing
                Just "" -> return Nothing
                Just tx -> return (Just tx)
   let n = Node { _id = 0, title = fTitle, text = fText, adjacent = [(parent, "")] }
-  io . logmsg $ "preNew. n = " ++ show n
   nid <- createNode n
-  io . logmsg $ "preNew. new node id = " ++ show nid
   gmSetInput "pg"     "View"
-  gmSetInput "parent" $ show nid
+  gmSetInput "view" $ show nid
 
 
 -- | Special, like 'pgLogin'.
@@ -223,7 +220,7 @@ pgView = do
     +++ unordList (nodeLinks v)
     +++ case text v of
           Nothing -> noHtml
-          Just t  -> h3 << s2h "text" +++ paragraph << s2h t
+          Just t  -> h3 << s2h "Text" +++ paragraph << s2h t
     +++ actionWidget a v
     +++ anchorWidget a v
   
