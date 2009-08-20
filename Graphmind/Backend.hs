@@ -19,6 +19,8 @@ module Graphmind.Backend
    getNode
   ,putNode
   ,createNode
+  ,deleteNode
+  ,deleteNodeById
   --,getView
   ,getAnchor
   ,searchNodes
@@ -125,6 +127,15 @@ updateNode new old = do
                 >> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ _id new, toSql $ i])
         added
 
+
+deleteNode :: Node -> GM ()
+deleteNode = deleteNodeById . _id
+
+deleteNodeById :: NodeId -> GM ()
+deleteNodeById nid = do
+  let snid = toSql nid
+  gmRun "DELETE FROM Link WHERE node_to = ? OR node_from = ?" [snid, snid]
+  gmRun "DELETE FROM Node WHERE _id = ?" [snid]
 
 
 -- | Given a search string, returns all nodes whose title or body text matches

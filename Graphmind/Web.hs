@@ -99,9 +99,9 @@ getView = getNodeFromParamAnchor "view"
 
 getNodeFromParamAnchor :: String -> GM Node
 getNodeFromParamAnchor s = do
-  i <- gmInput s
+  i <- getNodeIdFromParam s
   case i of 
-    Just n  -> getNode (read n) >>= \n' -> case n' of
+    Just n  -> getNode n >>= \n' -> case n' of
                  Nothing   -> (setErrorThisReq $ "Node " ++ show n ++ " not found.") >> getAnchor
                  Just node -> return node
     Nothing -> getAnchor
@@ -109,10 +109,14 @@ getNodeFromParamAnchor s = do
 
 getNodeIdFromParamAnchor :: String -> GM NodeId
 getNodeIdFromParamAnchor s = do
-  i <- gmInput s
-  case i of
-    Just n  -> return . read $ n
+  m <- getNodeIdFromParam s
+  case m of 
+    Just n  -> return n
     Nothing -> _id <$> getAnchor
+
+
+getNodeIdFromParam :: String -> GM (Maybe NodeId)
+getNodeIdFromParam s = fmap read <$> gmInput s -- two layers to fmap into
 
 
 -----------------------------------------------------------------------------
@@ -150,7 +154,7 @@ getErrorThisReq = do
 
 -- deliberately does not include preLogin
 preMap :: M.Map String Pre
-preMap = M.fromList [("New",preNew)]
+preMap = M.fromList [("New",preNew),("Delete",preDelete)]
 
 
 
@@ -169,6 +173,13 @@ preNew = do
   gmSetInput "pg"     "View"
   gmSetInput "view" $ show nid
 
+
+preDelete :: Pre
+preDelete = do
+  mdelete <- getNodeIdFromParam "delete"
+  case mdelete of
+    Nothing -> return ()
+    Just d  -> deleteNodeById d -- let View default to the anchor.
 
 -- | Special, like 'pgLogin'.
 preLogin :: Connection -> CGI (Maybe UserId)
@@ -208,7 +219,7 @@ preLogin c = do
 --type Pg = GM CGIResult
 -- deliberately does not include pgLogin
 pgMap :: M.Map String Pg
-pgMap = M.fromList [("View",pgView),("New", pgNew)]
+pgMap = M.fromList [("View",pgView),("New", pgNew),("Delete", pgDelete)]
 
 
 pgView :: Pg
@@ -237,6 +248,21 @@ pgNew = do
     +++ br +++ br
     +++ submit "create" "Create Node")
     
+
+pgDelete :: Pg
+pgDelete = do
+  n <- getNodeFromParamAnchor "delete"
+  pg . pgTemplate "Confirm Deletion" $
+    paragraph << (
+      s2h "Are you certain you want to delete the node '"
+      +++ bold << s2h (title n)
+      +++ "'?"
+      +++ unordList [
+             gmlink "Delete" "View" [("delete", show (_id n))] (s2h "Yes, delete the node") -- defaults to viewing the anchor.
+            ,gmlink ""       "View" [("view",   show (_id n))] (s2h "No, go back.")
+            ]
+    )
+
 
 -- | Display the login page.
 --
@@ -270,6 +296,7 @@ anchorWidget a n
 actionWidget :: Node -> Node -> Html
 actionWidget a n = h3 << s2h "Actions" +++ unordList (map snd . filter fst $ [
      (True, gmlink "" "New" [("parent", show (_id n))] (s2h "Create new node"))
+    ,(True, gmlink "" "Delete" [("delete", show (_id n))] (s2h "Delete this node"))
     ,(a /= n && not neighbours, 
         gmlink "Link" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Link to anchor"))
     ,(neighbours, gmlink "Unlink" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Unlink from anchor"))
