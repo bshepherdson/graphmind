@@ -160,6 +160,7 @@ preMap = M.fromList [
           ,("MoveAnchor",preMoveAnchor)
           ,("Swap",preSwap)
           ,("Link",preLink)
+          ,("Unlink", preUnlink)
           ]
 
 
@@ -214,6 +215,15 @@ preLink = do
   case v of
     Nothing -> return ()
     Just v' -> putNode $ a { adjacent = (v', "") : adjacent a }
+
+
+preUnlink :: Pre
+preUnlink = do
+  a <- getAnchor
+  v <- gmReadInput "view"
+  case v of
+    Nothing -> return ()
+    Just v' -> putNode $ a { adjacent = filter ((/= v') . fst) (adjacent a) }
 
 
 -- | Special, like 'pgLogin'.
