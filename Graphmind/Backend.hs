@@ -91,20 +91,21 @@ putNode :: Node -> GM ()
 putNode new = do
   old <- getNode (_id new)
   case old of
-    Nothing -> createNode new
+    Nothing -> createNode new >> return ()
     Just o  -> updateNode new o
 
 
 -- | Creates a new node.
-createNode :: Node -> GM ()
+createNode :: Node -> GM NodeId
 createNode new = do
   let params = [toSql $ title new, toSql $ text new]
   gmRun "INSERT INTO Node (title, text) VALUES (?,?)" params
   rs <- gmQuickQuery "SELECT _id, title, text FROM Node WHERE title = ?" $ take 1 params
-  let n = head . last $ rs -- grab the _id
+  let n = head . last $ rs -- grab the _id. note that this handles multiple same-named nodes
   mapM_ (\(i,_) -> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [n, toSql $ i]
                 >> gmRun "INSERT INTO Link (node_from,node_to) VALUES (?,?)" [toSql $ i, n])
         (adjacent new)
+  return $ fromSql n
 
 
 -- updates the old node to match the new node, with a minimum of database queries

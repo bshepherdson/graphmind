@@ -34,8 +34,10 @@ import qualified Data.Map as M
 
 graphmind :: GM CGIResult
 graphmind = do
-  preName <- cgi $ fromMaybe "" <$> getInput "pre"
-  pgName  <- cgi $ fromMaybe "View"      <$> getInput "pg"
+  preName <- fromMaybe ""     <$> gmInput "pre"
+  pgName  <- fromMaybe "View" <$> gmInput "pg"
+
+  io . logmsg $ "pgName: " ++ pgName
 
   case (preName,pgName) of
     --("Login",_) -> cgi $ redirect (target "pg=View") -- redirect, logged-in people shouldn't be logging in again
@@ -61,10 +63,10 @@ cgiMain c = do
         res <- preLogin c
         liftIO $ logmsg $ "preLogin result: " ++ show res
         case res of
-          Just u  -> runGM graphmind (GMState c u)
+          Just u  -> runGM graphmind (GMConf c u) (GMState [] M.empty)
           Nothing -> pgLogin
     (Nothing, _)            -> liftIO (logmsg "onoes") >> pgLogin
-    (Just u, _)             -> runGM graphmind (GMState c u)
+    (Just u, _)             -> runGM graphmind (GMConf c u) (GMState [] M.empty)
 
 
 main :: IO ()

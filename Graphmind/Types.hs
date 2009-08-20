@@ -15,12 +15,15 @@
 -----------------------------------------------------------------------------
 
 module Graphmind.Types (
-  module Control.Monad.Reader
+  module Control.Monad
+ ,module Control.Monad.Reader.Class
+ ,module Control.Monad.State.Class
  ,module Control.Applicative
  ,Node(..)
  ,NodeId
  ,GM(..)
  ,GMState(..)
+ ,GMConf(..)
  ,runGM
  ,io
  ,cgi
@@ -29,17 +32,25 @@ module Graphmind.Types (
  ,Pre
  ,Pg
 
+ ,gmInput
+ ,gmSetInput
+
  ,logmsg
  ,gmRedirect
 ) where
 
+import Control.Monad
 import Control.Monad.Reader
+import Control.Monad.Reader.Class
+import Control.Monad.State.Strict
+import Control.Monad.State.Class
 import Control.Applicative
 
 import Database.HDBC ()
 import Database.HDBC.Sqlite3
 
 import Data.Time
+import qualified Data.Map as M
 
 import Network.FastCGI
 
@@ -80,23 +91,40 @@ instance Eq Node where
   (Node x _ _ _) == (Node y _ _ _) = x == y -- equality is just based on IDs
 
 
-data GMState = GMState { 
+data GMConf = GMConf { 
     conn    :: !Connection
    ,user    :: !UserId
 }
 
--- | The Graphmind Monad
-newtype GM a = GM (ReaderT GMState (CGIT IO) a)
-  deriving (Functor, Monad, MonadReader GMState, MonadIO)
+data GMState = GMState {
+    errors  :: [String]
+   ,vars    :: M.Map String String
+}
 
-runGM :: forall a . GM a -> GMState -> CGIT IO a
-runGM (GM a) s = runReaderT a s
+-- | The Graphmind Monad
+newtype GM a = GM (ReaderT GMConf (StateT GMState (CGIT IO)) a)
+  deriving (Functor, Monad, MonadReader GMConf, MonadState GMState, MonadIO)
+
+runGM :: forall a . GM a -> GMConf -> GMState -> CGIT IO a
+runGM (GM a) c st = evalStateT (runReaderT a c) st
 
 io :: forall a. IO a -> GM a
 io = liftIO
 
 cgi :: forall a. CGI a -> GM a
-cgi = GM . lift
+cgi = GM . lift . lift
+
+
+-- helper functions
+
+gmInput :: String -> GM (Maybe String)
+gmInput s = do
+  v <- M.lookup s <$> gets vars
+  c <- cgi $ getInput s
+  return $ v `mplus` c
+  
+gmSetInput :: String -> String -> GM ()
+gmSetInput k v = modify $ \st -> st { vars = M.insert k v (vars st) }
 
 
 

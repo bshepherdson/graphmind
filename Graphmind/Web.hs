@@ -35,7 +35,7 @@ import Database.HDBC.Sqlite3
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy.Char8 as B
 import Data.List (intercalate)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust,fromMaybe)
 
 import Network.FastCGI
 import Text.XHtml hiding (title,text,target,pre,content)
@@ -49,19 +49,32 @@ import Data.Digest.Pure.SHA
 -- | Takes the title and body and constructs the page.
 --
 -- Needs to be in CGI because it uses the @err@ parameter.
-pgTemplate :: String -> Html -> CGI Html
+pgTemplate :: String -> Html -> GM Html
 pgTemplate t b = do
-  err <- getError
+  err  <- cgi $ getErrorNextReq
+  err' <- getErrorThisReq
+  return $ header << thetitle << s2h t +++ body << (
+             h1 << t +++ err +++ err' +++ b
+           )
+
+cgiPgTemplate :: String -> Html -> CGI Html
+cgiPgTemplate t b = do
+  err  <- getErrorNextReq
   return $ header << thetitle << s2h t +++ body << (
              h1 << t +++ err +++ b
            )
+
 
 showPg :: Html -> CGI CGIResult
 showPg = output . showHtml
 
 
-pg :: CGI Html -> CGI CGIResult
-pg h = h >>= showPg
+pg :: GM Html -> GM CGIResult
+pg h = h >>= cgi . showPg
+
+
+cgiPg :: CGI Html -> CGI CGIResult
+cgiPg h = h >>= showPg
 
 
 s2h :: String -> Html
@@ -76,32 +89,43 @@ target s = "/graphmind.fcgi?" ++ s
 
 -- pre, pg, other params, link text
 gmlink :: String -> String -> [(String,String)] -> Html -> HotLink
-gmlink pre pg' params content = hotlink (target . intercalate "=" . map (\(x,y) -> x++"="++y) $ params') content
+gmlink pre pg' params content = hotlink (target . intercalate "&" . map (\(x,y) -> x++"="++y) $ params') content
   where params' | null pre  = ("pg",pg') : params
                 | otherwise = [("pre", pre), ("pg", pg')] ++ params
 
 
 getView :: GM Node
-getView = do
-  i <- cgi $ readInput "view"
-  v <- case i of 
-         Just n  -> getNode n >>= \n' -> case n' of
-                      Nothing   -> cgi (setError $ "Node " ++ show n ++ " not found.") >> getAnchor
-                      Just node -> return node
-         Nothing -> getAnchor
+getView = getNodeFromParamAnchor "view"
+
+getNodeFromParamAnchor :: String -> GM Node
+getNodeFromParamAnchor s = do
+  i <- cgi $ readInput s
+  case i of 
+    Just n  -> getNode n >>= \n' -> case n' of
+                 Nothing   -> (setErrorThisReq $ "Node " ++ show n ++ " not found.") >> getAnchor
+                 Just node -> return node
+    Nothing -> getAnchor
+
+
+getNodeIdFromParamAnchor :: String -> GM NodeId
+getNodeIdFromParamAnchor s = do
+  i <- cgi $ readInput s
+  case i of
+    Just n  -> return . read $ n
+    Nothing -> _id <$> getAnchor
 
 
 -----------------------------------------------------------------------------
 -- error handling
 -----------------------------------------------------------------------------
 
-setError :: String -> CGI ()
-setError = setCookie . newCookie "graphmind-error"
+setErrorNextReq :: String -> CGI ()
+setErrorNextReq = setCookie . newCookie "graphmind-error"
 
 
 -- either prints the error message or nothing
-getError :: CGI Html
-getError = do
+getErrorNextReq :: CGI Html
+getErrorNextReq = do
   c <- getCookie "graphmind-error"
   case c of
     Nothing -> return noHtml
@@ -110,6 +134,15 @@ getError = do
       return $ paragraph ! [theclass "error"] << s2h e
 
 
+setErrorThisReq :: String -> GM ()
+setErrorThisReq s = modify $ \st -> st { errors = errors st ++ [s] }
+
+getErrorThisReq :: GM Html
+getErrorThisReq = do
+  es <- gets errors
+  modify $ \st -> st { errors = [] }
+  return $ paragraph ! [theclass "error"] << unordList (map s2h es)
+
 -----------------------------------------------------------------------------
 -- pre handlers
 -----------------------------------------------------------------------------
@@ -117,7 +150,27 @@ getError = do
 
 -- deliberately does not include preLogin
 preMap :: M.Map String Pre
-preMap = M.fromList []
+preMap = M.fromList [("New",preNew)]
+
+
+
+-- | Creates a new node. The node has a link to the node given in the @parent@ attribute, defaulting to
+-- the anchor.
+preNew :: Pre
+preNew = do
+  parent <- getNodeIdFromParamAnchor "parent"
+  io . logmsg $ "preNew. parent = " ++ show parent
+  fTitle <- fromMaybe "Untitled Node" <$> gmInput "title"
+  fText  <- gmInput "text" >>= \m -> case m of
+               Nothing -> return Nothing
+               Just "" -> return Nothing
+               Just tx -> return (Just tx)
+  let n = Node { _id = 0, title = fTitle, text = fText, adjacent = [(parent, "")] }
+  io . logmsg $ "preNew. n = " ++ show n
+  nid <- createNode n
+  io . logmsg $ "preNew. new node id = " ++ show nid
+  gmSetInput "pg"     "View"
+  gmSetInput "parent" $ show nid
 
 
 -- | Special, like 'pgLogin'.
@@ -141,11 +194,11 @@ preLogin c = do
           --gmRedirect (target "pg=View")
           return . Just . fromSql $ uid
         _       -> do
-          setError "The username or password provided is incorrect. Please try again."
+          setErrorNextReq "The username or password provided is incorrect. Please try again."
           --redirect (target "pg=Login")
           return Nothing
     _ -> do
-      setError "You must provide a username and password."
+      setErrorNextReq "You must provide a username and password."
       --redirect (target "pg=Login")
       return Nothing
 
@@ -158,14 +211,14 @@ preLogin c = do
 --type Pg = GM CGIResult
 -- deliberately does not include pgLogin
 pgMap :: M.Map String Pg
-pgMap = M.fromList [("View",pgView)]
+pgMap = M.fromList [("View",pgView),("New", pgNew)]
 
 
 pgView :: Pg
 pgView = do
   a <- getAnchor
   v <- getView
-  cgi $ pg $ pgTemplate (title v) $
+  pg $ pgTemplate (title v) $
     h3 << s2h "Links"
     +++ unordList (nodeLinks v)
     +++ case text v of
@@ -175,13 +228,25 @@ pgView = do
     +++ anchorWidget a v
   
 
+pgNew :: Pg
+pgNew = do
+  v <- getNodeIdFromParamAnchor "parent"
+  pg . pgTemplate "New Node" $
+    form ! [action . target $ "pre=New&parent=" ++ show v, method "POST"]
+    << (paragraph << bold << s2h "Title"
+    +++ textfield "" ! [size "50", maxlength 255, name "title"]
+    +++ paragraph << bold << s2h "Text"
+    +++ textarea ! [rows "10", cols "50", name "text"] << noHtml
+    +++ br +++ br
+    +++ submit "create" "Create Node")
+    
 
 -- | Display the login page.
 --
 -- This pg is special, it's not in GM since there's no UserId yet.
 
 pgLogin :: CGI CGIResult
-pgLogin = pg $ pgTemplate "Graphmind Login" $ 
+pgLogin = cgiPg $ cgiPgTemplate "Graphmind Login" $ 
   form ! [action $ target "pre=Login&pg=View", method "POST"]
     << (table << tbody
       << (tr << (td << s2h "Username:" +++ td << textfield "" ! [size "30", maxlength 50, name "gmUser"])
@@ -207,7 +272,7 @@ anchorWidget a n
 
 actionWidget :: Node -> Node -> Html
 actionWidget a n = h3 << s2h "Actions" +++ unordList (map snd . filter fst $ [
-     (True, gmlink "" "New" [("anchor", show (_id a))] (s2h "Create new node"))
+     (True, gmlink "" "New" [("parent", show (_id n))] (s2h "Create new node"))
     ,(a /= n && not neighbours, 
         gmlink "Link" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Link to anchor"))
     ,(neighbours, gmlink "Unlink" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Unlink from anchor"))
