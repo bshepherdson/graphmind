@@ -154,7 +154,11 @@ getErrorThisReq = do
 
 -- deliberately does not include preLogin
 preMap :: M.Map String Pre
-preMap = M.fromList [("New",preNew),("Delete",preDelete)]
+preMap = M.fromList [
+           ("New",preNew)
+          ,("Delete",preDelete)
+          ,("MoveAnchor",preMoveAnchor)
+          ]
 
 
 
@@ -180,6 +184,17 @@ preDelete = do
   case mdelete of
     Nothing -> return ()
     Just d  -> deleteNodeById d -- let View default to the anchor.
+
+
+preMoveAnchor :: Pre
+preMoveAnchor = do
+  ma <- gmReadInput "anchor"
+  case ma of
+    Nothing -> return ()
+    Just a  -> io (logmsg $ "Setting anchor to " ++ show a) >> setAnchor a >> io (logmsg $ "Done setting anchor")
+
+
+
 
 -- | Special, like 'pgLogin'.
 preLogin :: Connection -> CGI (Maybe UserId)
@@ -209,7 +224,6 @@ preLogin c = do
       setErrorNextReq "You must provide a username and password."
       --redirect (target "pg=Login")
       return Nothing
-
 
 
 -----------------------------------------------------------------------------

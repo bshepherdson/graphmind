@@ -34,6 +34,7 @@ module Graphmind.Types (
 
  ,gmInput
  ,gmSetInput
+ ,gmReadInput
 
  ,logmsg
  ,gmRedirect
@@ -126,6 +127,8 @@ gmInput s = do
 gmSetInput :: String -> String -> GM ()
 gmSetInput k v = modify $ \st -> st { vars = M.insert k v (vars st) }
 
+gmReadInput :: (Read a) => String -> GM (Maybe a)
+gmReadInput s = fmap read <$> gmInput s
 
 
 -- debugging

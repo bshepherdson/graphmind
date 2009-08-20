@@ -25,6 +25,8 @@ module Graphmind.Backend
   ,getAnchor
   ,searchNodes
   ,orphanedNodes
+
+  ,setAnchor
 )
 where
 
@@ -152,4 +154,13 @@ orphanedNodes :: GM [(NodeId, String)]
 orphanedNodes = do
   rs <- gmQuickQuery "SELECT _id, title FROM Node WHERE _id NOT IN (SELECT DISTINCT node_from FROM Link)" []
   return $ map (\[i,t] -> (fromSql i, fromSql t)) rs
+
+
+
+setAnchor :: NodeId -> GM ()
+setAnchor nid = do
+  uid <- asks user
+  io . logmsg $ "setAnchor: uid = " ++ show uid ++ ", nid = " ++ show nid
+  gmRun "UPDATE User SET anchor = ? WHERE _id = ?" [toSql nid, toSql uid]
+
 
