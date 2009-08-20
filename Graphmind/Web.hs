@@ -34,9 +34,11 @@ import Database.HDBC.Sqlite3
 
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy.Char8 as B
+import Data.List (intercalate)
+import Data.Maybe (isJust)
 
 import Network.FastCGI
-import Text.XHtml hiding (title,text,target)
+import Text.XHtml hiding (title,text,target,pre,content)
 import Data.Digest.Pure.SHA
 
 
@@ -71,6 +73,22 @@ nodeLinks n = map (\(i,t) -> hotlink (target $ "pg=View&view=" ++ show i) (s2h t
 
 target :: String -> String
 target s = "/graphmind.fcgi?" ++ s
+
+-- pre, pg, other params, link text
+gmlink :: String -> String -> [(String,String)] -> Html -> HotLink
+gmlink pre pg' params content = hotlink (target . intercalate "=" . map (\(x,y) -> x++"="++y) $ params') content
+  where params' | null pre  = ("pg",pg') : params
+                | otherwise = [("pre", pre), ("pg", pg')] ++ params
+
+
+getView :: GM Node
+getView = do
+  i <- cgi $ readInput "view"
+  v <- case i of 
+         Just n  -> getNode n >>= \n' -> case n' of
+                      Nothing   -> cgi (setError $ "Node " ++ show n ++ " not found.") >> getAnchor
+                      Just node -> return node
+         Nothing -> getAnchor
 
 
 -----------------------------------------------------------------------------
@@ -145,29 +163,17 @@ pgMap = M.fromList [("View",pgView)]
 
 pgView :: Pg
 pgView = do
-  (GMState _ _) <- ask
   a <- getAnchor
-  i <- cgi $ readInput "view"
-  v <- case i of 
-         Just n  -> getNode n >>= \n' -> case n' of
-                      Nothing   -> cgi (setError $ "Node " ++ show n ++ " not found.") >> getAnchor
-                      Just node -> return node
-         Nothing -> getAnchor
+  v <- getView
   cgi $ pg $ pgTemplate (title v) $
     h3 << s2h "Links"
     +++ unordList (nodeLinks v)
     +++ case text v of
           Nothing -> noHtml
           Just t  -> h3 << s2h "text" +++ paragraph << s2h t
+    +++ actionWidget a v
     +++ anchorWidget a v
   
- where anchorWidget a n 
-         | a == n    = h3 << s2h "Anchor" +++ paragraph << s2h "Viewing anchor now."
-         | otherwise = h3 << s2h "Anchor" +++ paragraph << bold << s2h (title a) +++ unordList [
-                   hotlink (target $ "pre=MoveAnchor&pg=View&anchor=" ++ show (_id a) ++ "&view=" ++ show (_id n)) (s2h "Move anchor here")
-                  ,hotlink (target $ "pre=Swap&pg=View&view=" ++ show (id n)) (s2h "Swap")
-                  ]
-
 
 
 -- | Display the login page.
@@ -182,4 +188,31 @@ pgLogin = pg $ pgTemplate "Graphmind Login" $
       +++ tr << (td << s2h "Password:" +++ td << password ""  ! [size "30", maxlength 50, name "gmPwd"])
       )
     +++ submit "login" "Log In")
+
+
+
+
+-----------------------------------------------------------------------------
+-- widgets
+-----------------------------------------------------------------------------
+
+anchorWidget :: Node -> Node -> Html
+anchorWidget a n 
+         | a == n    = h3 << s2h "Anchor" +++ paragraph << s2h "Viewing anchor now."
+         | otherwise = h3 << s2h "Anchor" +++ paragraph << bold << s2h (title a) +++ unordList [
+                   gmlink "MoveAnchor" "View" [("anchor", show (_id n)), ("view", show (_id n))] (s2h "Move anchor here")
+                  ,gmlink "Swap" "View" [("view", show (_id n))] (s2h "Swap with current")
+                  ,gmlink "" "View" [("view", show (_id a))] (s2h "Go to anchor")
+                  ]
+
+actionWidget :: Node -> Node -> Html
+actionWidget a n = h3 << s2h "Actions" +++ unordList (map snd . filter fst $ [
+     (True, gmlink "" "New" [("anchor", show (_id a))] (s2h "Create new node"))
+    ,(a /= n && not neighbours, 
+        gmlink "Link" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Link to anchor"))
+    ,(neighbours, gmlink "Unlink" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Unlink from anchor"))
+    ])
+  where neighbours = isJust . lookup (_id n) . adjacent $ a
+
+
 
