@@ -118,6 +118,13 @@ getNodeIdFromParamAnchor s = do
 getNodeIdFromParam :: String -> GM (Maybe NodeId)
 getNodeIdFromParam s = fmap read <$> gmInput s -- two layers to fmap into
 
+getNodeFromParam :: String -> GM (Maybe Node)
+getNodeFromParam s = do --fmap (join . getNode) <$> getNodeIdFromParam -- need to collapse two layers of Maybe
+  mnid <- getNodeIdFromParam s
+  case mnid of
+    Nothing -> return Nothing
+    Just nid -> getNode nid
+
 
 -----------------------------------------------------------------------------
 -- error handling
@@ -161,6 +168,7 @@ preMap = M.fromList [
           ,("Swap",preSwap)
           ,("Link",preLink)
           ,("Unlink", preUnlink)
+          ,("Edit", preEdit)
           ]
 
 
@@ -226,6 +234,18 @@ preUnlink = do
     Just v' -> putNode $ a { adjacent = filter ((/= v') . fst) (adjacent a) }
 
 
+preEdit :: Pre
+preEdit = do
+  mv <- getNodeFromParam "edit"
+  case mv of
+    Nothing -> setErrorThisReq "Didn't know what node to edit."
+    Just v  -> do
+      fTitle <- fromMaybe (title v) <$> gmInput "title"
+      fText  <- gmInput "text"
+      putNode $ v { title = fTitle, text = (if fText == Just "" then Nothing else fText) }
+
+  
+
 -- | Special, like 'pgLogin'.
 preLogin :: Connection -> CGI (Maybe UserId)
 preLogin c = do
@@ -263,7 +283,7 @@ preLogin c = do
 --type Pg = GM CGIResult
 -- deliberately does not include pgLogin
 pgMap :: M.Map String Pg
-pgMap = M.fromList [("View",pgView),("New", pgNew),("Delete", pgDelete)]
+pgMap = M.fromList [("View",pgView),("New", pgNew),("Delete", pgDelete),("Edit", pgEdit)]
 
 
 pgView :: Pg
@@ -283,14 +303,32 @@ pgView = do
 pgNew :: Pg
 pgNew = do
   v <- getNodeIdFromParamAnchor "parent"
-  pg . pgTemplate "New Node" $
-    form ! [action . target $ "pre=New&parent=" ++ show v, method "POST"]
+  pg . pgTemplate "New Node" $ newEditHelper ("pre=New&parent=" ++ show v) "" "" "create" "Create Node"
+
+
+pgEdit :: Pg
+pgEdit = do
+  mv <- getNodeFromParam "edit"
+  case mv of
+    Nothing -> cgi $ setErrorNextReq "Didn't know what node to edit." >> gmRedirect (target "pg=View")
+    Just v  -> pg $ pgTemplate ("Editing '" ++ title v ++ "'") $
+                    newEditHelper ("pre=Edit&edit=" ++ show (_id v) ++ "&view=" ++ show (_id v))
+                                  (title v)
+                                  (fromMaybe "" $ text  v)
+                                  "edit"
+                                  "Update Node"
+
+
+-- that's: action, title, text, submit name, submit text
+newEditHelper :: String -> String -> String -> String -> String -> Html
+newEditHelper act pTitle pText sName sText =
+    form ! [action . target $ act, method "POST"]
     << (paragraph << bold << s2h "Title"
-    +++ textfield "" ! [size "50", maxlength 255, name "title"]
+    +++ textfield "" ! [size "50", maxlength 255, name "title", value pTitle]
     +++ paragraph << bold << s2h "Text"
-    +++ textarea ! [rows "10", cols "50", name "text"] << noHtml
+    +++ textarea ! [rows "10", cols "50", name "text"] << s2h pText
     +++ br +++ br
-    +++ submit "create" "Create Node")
+    +++ submit sName sText)
     
 
 pgDelete :: Pg
@@ -340,6 +378,7 @@ anchorWidget a n
 actionWidget :: Node -> Node -> Html
 actionWidget a n = h3 << s2h "Actions" +++ unordList (map snd . filter fst $ [
      (True, gmlink "" "New" [("parent", show (_id n))] (s2h "Create new node"))
+    ,(True, gmlink "" "Edit" [("edit", show (_id n))] (s2h "Edit this node"))
     ,(True, gmlink "" "Delete" [("delete", show (_id n))] (s2h "Delete this node"))
     ,(a /= n && not neighbours, 
         gmlink "Link" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Link to anchor"))
