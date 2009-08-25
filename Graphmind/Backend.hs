@@ -52,7 +52,8 @@ gmRun sql params = asks conn >>= \c -> io (run c sql params) >> return ()
 -- Returns Nothing if that node cannot be found.
 getNode :: NodeId -> GM (Maybe Node)
 getNode n = do
-  rs <- gmQuickQuery "SELECT _id, title, text FROM Node WHERE _id = ?" [toSql n]
+  u  <- asks user
+  rs <- gmQuickQuery "SELECT _id, title, text FROM Node WHERE _id = ? AND user = ?" [toSql n, toSql u]
   case rs of
     [sql] -> do
       let node = Node { _id = fromSql $ sql !! 0, title = fromSql $ sql !! 1, text = fromSql $ sql !! 2, adjacent = [] }
@@ -61,7 +62,10 @@ getNode n = do
     _     -> return Nothing
 
 adjacentNodes :: NodeId -> GM [[SqlValue]]
-adjacentNodes n = gmQuickQuery "SELECT Node._id, Node.title FROM Link INNER JOIN Node ON Link.node_to = Node._id WHERE Link.node_from = ?" [toSql n]
+adjacentNodes n = do
+  u <- asks user
+  gmQuickQuery "SELECT Node._id, Node.title FROM Link INNER JOIN Node ON Link.node_to = Node._id WHERE Node.user = ? AND Link.node_from = ?" 
+               [toSql u, toSql n]
 
 
 
@@ -116,9 +120,10 @@ createNode new = do
 -- updates the old node to match the new node, with a minimum of database queries
 updateNode :: Node -> Node -> GM ()
 updateNode new old = do
+  uid <- asks user
   when (title new /= title old || text new /= text old) 
-    $ gmRun "UPDATE Node SET title = ?, text = ? WHERE _id = ?" 
-                   [toSql $ title new, toSql $ text new, toSql $ _id new] 
+    $ gmRun "UPDATE Node SET title = ?, text = ? WHERE _id = ? AND user = ?" 
+                   [toSql $ title new, toSql $ text new, toSql $ _id new, toSql uid] 
         >> return ()
   let missing = deleteFirstsBy ((==) `on` fst) (adjacent old) (adjacent new)
       added   = deleteFirstsBy ((==) `on` fst) (adjacent new) (adjacent old)
@@ -131,20 +136,25 @@ updateNode new old = do
 
 
 deleteNode :: Node -> GM ()
-deleteNode = deleteNodeById . _id
+deleteNode n = do
+  let snid = toSql $ _id n
+  gmRun "DELETE FROM Link WHERE node_to = ? OR node_from = ?" [snid, snid]
+  gmRun "DELETE FROM Node WHERE _id = ?" [snid] -- safe because we had to getNode
 
 deleteNodeById :: NodeId -> GM ()
 deleteNodeById nid = do
-  let snid = toSql nid
-  gmRun "DELETE FROM Link WHERE node_to = ? OR node_from = ?" [snid, snid]
-  gmRun "DELETE FROM Node WHERE _id = ?" [snid]
+  mn <- getNode nid
+  case mn of
+    Nothing -> return ()
+    Just n  -> deleteNode n
 
 
 -- | Given a search string, returns all nodes whose title or body text matches
 searchNodes :: String -> GM [(NodeId, String)]
 searchNodes s = do
+  u <- asks user
   let str = "%" ++ s ++ "%"
-  rs <- gmQuickQuery "SELECT _id, title FROM Node WHERE title LIKE ? OR (text NOT NULL AND text LIKE ?)" [toSql str, toSql str]
+  rs <- gmQuickQuery "SELECT _id, title FROM Node WHERE user = ? AND (title LIKE ? OR (text NOT NULL AND text LIKE ?))" [toSql u, toSql str, toSql str]
   return $ map (\[i,t] -> (fromSql i, fromSql t)) rs
 
 
@@ -152,7 +162,8 @@ searchNodes s = do
 -- This can still lose a component subgraph that's disconnected from the rest.
 orphanedNodes :: GM [(NodeId, String)]
 orphanedNodes = do
-  rs <- gmQuickQuery "SELECT _id, title FROM Node WHERE _id NOT IN (SELECT DISTINCT node_from FROM Link)" []
+  u <- asks user
+  rs <- gmQuickQuery "SELECT _id, title FROM Node WHERE user = ? AND _id NOT IN (SELECT DISTINCT node_from FROM Link)" [toSql u]
   return $ map (\[i,t] -> (fromSql i, fromSql t)) rs
 
 
