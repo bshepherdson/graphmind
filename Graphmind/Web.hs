@@ -82,7 +82,10 @@ s2h = stringToHtml
 
 
 nodeLinks :: Node -> [HotLink]
-nodeLinks n = map (\(i,t) -> hotlink (target $ "pg=View&view=" ++ show i) (s2h t)) (adjacent n)
+nodeLinks = listLinks . adjacent
+
+listLinks :: [(NodeId,String)] -> [HotLink]
+listLinks xs = map (\(i,t) -> gmlink "" "View" [("view", show i)] (s2h t)) xs
 
 target :: String -> String
 target s = "/graphmind.fcgi?" ++ s
@@ -289,6 +292,7 @@ pgMap = M.fromList [
           ,("Delete", pgDelete)
           ,("Edit", pgEdit)
           ,("Orphans", pgOrphans)
+          ,("Search", pgSearch)
         ]
 
 
@@ -304,6 +308,7 @@ pgView = do
           Just t  -> h3 << s2h "Text" +++ paragraph << s2h t
     +++ actionWidget a v
     +++ anchorWidget a v
+    +++ searchWidget ""
   
 
 pgNew :: Pg
@@ -356,7 +361,16 @@ pgOrphans :: Pg
 pgOrphans = do
   os <- orphanedNodes
   pg $ pgTemplate "Orphaned Nodes" $ 
-    unordList $ map (\(i,t) -> gmlink "" "View" [("view", show i)] (s2h t)) os
+    unordList $ listLinks os
+
+
+pgSearch :: Pg
+pgSearch = do
+  s <- fromMaybe "" <$> gmInput "search"
+  found <- searchNodes s
+  pg $ pgTemplate ("Search for \"" ++ s ++ "\"") $
+        searchWidget s 
+    +++ (unordList $ listLinks found)
 
 
 
@@ -401,5 +415,11 @@ actionWidget a n = h3 << s2h "Actions" +++ unordList (map snd . filter fst $ [
     ])
   where neighbours = isJust . lookup (_id n) . adjacent $ a
 
+
+searchWidget :: String -> Html
+searchWidget s = h3 << s2h "Search" +++
+                    form ! [action $ target "pg=Search", method "POST"] << (
+                        textfield "" ! [size "20", maxlength 255, name "search", value s]
+                    +++ submit "submit" "Search")
 
 
