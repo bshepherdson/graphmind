@@ -283,7 +283,13 @@ preLogin c = do
 --type Pg = GM CGIResult
 -- deliberately does not include pgLogin
 pgMap :: M.Map String Pg
-pgMap = M.fromList [("View",pgView),("New", pgNew),("Delete", pgDelete),("Edit", pgEdit)]
+pgMap = M.fromList [
+           ("View",pgView)
+          ,("New", pgNew)
+          ,("Delete", pgDelete)
+          ,("Edit", pgEdit)
+          ,("Orphans", pgOrphans)
+        ]
 
 
 pgView :: Pg
@@ -346,6 +352,14 @@ pgDelete = do
     )
 
 
+pgOrphans :: Pg
+pgOrphans = do
+  os <- orphanedNodes
+  pg $ pgTemplate "Orphaned Nodes" $ 
+    unordList $ map (\(i,t) -> gmlink "" "View" [("view", show i)] (s2h t)) os
+
+
+
 -- | Display the login page.
 --
 -- This pg is special, it's not in GM since there's no UserId yet.
@@ -383,6 +397,7 @@ actionWidget a n = h3 << s2h "Actions" +++ unordList (map snd . filter fst $ [
     ,(a /= n && not neighbours, 
         gmlink "Link" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Link to anchor"))
     ,(neighbours, gmlink "Unlink" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Unlink from anchor"))
+    ,(True, gmlink "" "Orphans" [] (s2h "Orphaned Nodes"))
     ])
   where neighbours = isJust . lookup (_id n) . adjacent $ a
 
