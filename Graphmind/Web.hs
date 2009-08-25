@@ -261,7 +261,7 @@ preLogin c = do
       liftIO $ logmsg $ "Got user '" ++ u ++ "' and password '" ++ pw ++ "'."
       let hash = showDigest . sha1 . B.pack $ pw
       liftIO $ logmsg $ "Got hash of '" ++ hash ++ "'."
-      rs <- liftIO $ quickQuery' c "SELECT _id FROM User WHERE username = ? AND password = ?" [toSql u, toSql hash]
+      rs <- liftIO $ quickQuery' c "SELECT _id FROM User WHERE username = ? AND password = ? AND fBanned = 0" [toSql u, toSql hash]
       case rs of
         [[uid]] -> do
           liftIO $ logmsg $ "Found userid " ++ show (fromSql uid :: Int) ++ "."

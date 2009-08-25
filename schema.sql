@@ -5,6 +5,9 @@ CREATE TABLE User (
    ,password      CHAR(40) NOT NULL
    --,view          INTEGER NOT NULL REFERENCES Node (_id)
    ,anchor        INTEGER NOT NULL REFERENCES Node (_id)
+   ,email         VARCHAR(255) NOT NULL
+   ,fAdmin        BOOLEAN NOT NULL
+   ,fBanned       BOOLEAN NOT NULL
    );
 
 CREATE TABLE Session (
