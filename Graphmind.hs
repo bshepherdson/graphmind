@@ -57,16 +57,23 @@ cgiMain c = do
   liftIO $ logmsg "Begin session"
   s <- checkSession c
   pre <- getInput "pre"
-  case (s,pre) of
-    (Nothing, Just "Login") -> do 
+  pg  <- getInput "pg"
+  case (s,pre,pg) of
+    (Nothing, Just "Login",_) -> do 
         liftIO $ logmsg "srsly"
         res <- preLogin c
         liftIO $ logmsg $ "preLogin result: " ++ show res
         case res of
           Just u  -> runGM graphmind (GMConf c u) (GMState [] M.empty)
           Nothing -> pgLogin
-    (Nothing, _)            -> liftIO (logmsg "onoes") >> pgLogin
-    (Just u, _)             -> runGM graphmind (GMConf c u) (GMState [] M.empty)
+    (Nothing, Just "Register",_) -> do
+        res <- preRegister c
+        case res of
+          Just u  -> runGM graphmind (GMConf c u) (GMState [] M.empty)
+          Nothing -> pgRegister
+    (Nothing, _, Just "Register") -> pgRegister
+    (Nothing, _, _)            -> liftIO (logmsg "onoes") >> pgLogin
+    (Just u, _, _)             -> runGM graphmind (GMConf c u) (GMState [] M.empty)
 
 
 main :: IO ()

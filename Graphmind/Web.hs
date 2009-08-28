@@ -17,10 +17,12 @@
 module Graphmind.Web (
    preMap
   ,preLogin
+  ,preRegister
 
   ,pgMap
   ,pgView
   ,pgLogin
+  ,pgRegister
 
   ,target
 ) where
@@ -279,6 +281,52 @@ preLogin c = do
       return Nothing
 
 
+preRegister :: Connection -> CGI (Maybe UserId)
+preRegister c = do
+  username <- getInput "gmUser"
+  pswd     <- getInput "gmPwd"
+  pswdConf <- getInput "gmPwdConfirm"
+  email    <- getInput "gmEmail"
+
+  liftIO $ logmsg $ "preRegister: " ++ show username ++ ", " ++ show pswd ++ ", " ++ show pswdConf ++ ", " ++ show email
+
+  case (username,pswd,pswdConf,email) of
+    (Just u, Just pw, Just pw', Just e) 
+      | pw == pw' -> do
+          --all correct, create the user
+          let hash = showDigest . sha1 . B.pack $ pw
+          rs <- liftIO $ quickQuery' c "SELECT _id FROM User WHERE username = ?" [toSql u]
+          liftIO $ logmsg $ "Checking for other users: " ++ show rs
+          case rs of
+            (_:_) -> setErrorNextReq ("The username '" ++ u ++ "' is already in use.") >> return Nothing
+            []    -> do
+              liftIO $ logmsg $ "Acquiring a dummy node ID to use briefly..."
+              [[anchor]] <- liftIO $ quickQuery' c "SELECT _id FROM Node LIMIT 1" []
+              liftIO $ logmsg $ "Preparing to add new user: " ++ show [toSql u, toSql hash, toSql e, anchor]
+              liftIO $ run c "INSERT INTO User (username,password,email,anchor,fBanned,fAdmin) VALUES (?,?,?,?,0,1)"
+                             [toSql u, toSql hash, toSql e, anchor]
+              liftIO $ logmsg $ "New user added"
+              [[sqlUID]] <- liftIO $ quickQuery' c "SELECT _id FROM User WHERE username = ?" [toSql u]
+              liftIO $ logmsg $ "New user's id is " ++ show (fromSql sqlUID :: Int)
+              liftIO $ run c "INSERT INTO Node (title,text,user) VALUES ('Starting Node',NULL,?)" [sqlUID]
+              liftIO $ logmsg $ "Added new user's starting node."
+              [[sNid]]   <- liftIO $ quickQuery' c "SELECT _id FROM Node WHERE user = ?" [sqlUID]
+              liftIO $ logmsg $ "New node's id is " ++ show (fromSql sNid :: Int)
+              liftIO $ run c "UPDATE User SET anchor = ? WHERE _id = ?" [sNid, sqlUID]
+              liftIO $ logmsg $ "Finished"
+
+              return . Just . fromSql $ sqlUID -- graphmind main will send him to View, which will show the freshly set anchor.
+      
+      -- password mismatch
+      | otherwise -> setErrorNextReq "Passwords entered do not match." >> return Nothing
+
+    -- any other pattern is fail
+    _ -> setErrorNextReq "All fields are required." >> return Nothing
+
+
+
+
+
 -----------------------------------------------------------------------------
 -- pg handlers
 -----------------------------------------------------------------------------
@@ -388,6 +436,18 @@ pgLogin = cgiPg $ cgiPgTemplate "Graphmind Login" $
     +++ submit "login" "Log In")
 
 
+
+-- new user form: username, password, email
+pgRegister :: CGI CGIResult
+pgRegister = cgiPg $ cgiPgTemplate "Graphmind Registration" $
+  form ! [action $ target "pre=Register&pg=View", method "POST"]
+    << (table << tbody
+      << (tr << (td << s2h "Username:" +++ td << textfield "" ! [size "30", maxlength 50, name "gmUser"])
+      +++ tr << (td << s2h "Password:" +++ td << password  "" ! [size "30", maxlength 50, name "gmPwd"])
+      +++ tr << (td << s2h "Confirm password:" +++ td << password "" ! [size "30", maxlength 50, name "gmPwdConfirm"])
+      +++ tr << (td << s2h "Email:" +++ td << textfield "" ! [size "50", maxlength 255, name "gmEmail"])
+      )
+    +++ submit "register" "Register")
 
 
 -----------------------------------------------------------------------------
