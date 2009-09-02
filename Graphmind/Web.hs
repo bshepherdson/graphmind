@@ -314,8 +314,10 @@ preRegister c = do
               --liftIO $ logmsg $ "New node's id is " ++ show (fromSql sNid :: Int)
               liftIO $ run c "UPDATE User SET anchor = ? WHERE _id = ?" [sNid, sqlUID]
               --liftIO $ logmsg $ "Finished"
-
-              return . Just . fromSql $ sqlUID -- graphmind main will send him to View, which will show the freshly set anchor.
+              
+              let uid = fromSql sqlUID
+              newSession c uid
+              return . Just $ uid -- graphmind main will send him to View, which will show the freshly set anchor.
       
       -- password mismatch
       | otherwise -> setErrorNextReq "Passwords entered do not match." >> return Nothing
