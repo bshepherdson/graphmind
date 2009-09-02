@@ -90,7 +90,7 @@ listLinks :: [(NodeId,String)] -> [HotLink]
 listLinks xs = map (\(i,t) -> gmlink "" "View" [("view", show i)] (s2h t)) xs
 
 target :: String -> String
-target s = "/graphmind.fcgi?" ++ s
+target s = "/graphmind/graphmind.fcgi?" ++ s
 
 -- pre, pg, other params, link text
 gmlink :: String -> String -> [(String,String)] -> Html -> HotLink

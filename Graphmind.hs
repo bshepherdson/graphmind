@@ -78,7 +78,7 @@ cgiMain c = do
 
 main :: IO ()
 main = do
-  c <- connectSqlite3 "/tmp/graphmind.db"
+  c <- connectSqlite3 "/srv/http/graphmind/graphmind.db"
   --runFastCGIorCGI $ dumpResult $ cgiMain c
   runFastCGIorCGI $ cgiMain c
 
