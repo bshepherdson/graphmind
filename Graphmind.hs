@@ -37,7 +37,7 @@ graphmind = do
   preName <- fromMaybe ""     <$> gmInput "pre"
   pgName  <- fromMaybe "View" <$> gmInput "pg"
 
-  io . logmsg $ "pgName: " ++ pgName
+  --io . logmsg $ "pgName: " ++ pgName
 
   case (preName,pgName) of
     --("Login",_) -> cgi $ redirect (target "pg=View") -- redirect, logged-in people shouldn't be logging in again
@@ -54,15 +54,15 @@ graphmind = do
 
 cgiMain :: Connection -> CGI CGIResult
 cgiMain c = do
-  liftIO $ logmsg "Begin session"
+  --liftIO $ logmsg "Begin session"
   s <- checkSession c
   pre <- getInput "pre"
   pg  <- getInput "pg"
   case (s,pre,pg) of
     (Nothing, Just "Login",_) -> do 
-        liftIO $ logmsg "srsly"
+        --liftIO $ logmsg "srsly"
         res <- preLogin c
-        liftIO $ logmsg $ "preLogin result: " ++ show res
+        --liftIO $ logmsg $ "preLogin result: " ++ show res
         case res of
           Just u  -> runGM graphmind (GMConf c u) (GMState [] M.empty)
           Nothing -> pgLogin
@@ -72,7 +72,7 @@ cgiMain c = do
           Just u  -> runGM graphmind (GMConf c u) (GMState [] M.empty)
           Nothing -> pgRegister
     (Nothing, _, Just "Register") -> pgRegister
-    (Nothing, _, _)            -> liftIO (logmsg "onoes") >> pgLogin
+    (Nothing, _, _)            -> {- liftIO (logmsg "onoes") >> -} pgLogin
     (Just u, _, _)             -> runGM graphmind (GMConf c u) (GMState [] M.empty)
 
 

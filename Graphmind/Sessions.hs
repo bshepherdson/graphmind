@@ -38,10 +38,9 @@ checkSession c = do
   case cookie of
     Nothing -> return Nothing
     Just gs -> do
-       liftIO $ logmsg $ "Found session cookie: " ++ gs
        rs     <- liftIO $ quickQuery' c "SELECT user FROM Session WHERE hash = ?" [toSql gs]
        case rs of
-         [[u]] -> liftIO (logmsg $ "Loading user " ++ show u) >> return (Just $ fromSql u)
+         [[u]] -> return (Just $ fromSql u)
          _     -> return Nothing
 
 

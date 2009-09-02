@@ -207,7 +207,7 @@ preMoveAnchor = do
   ma <- gmReadInput "anchor"
   case ma of
     Nothing -> return ()
-    Just a  -> io (logmsg $ "Setting anchor to " ++ show a) >> setAnchor a >> io (logmsg $ "Done setting anchor")
+    Just a  -> setAnchor a
 
 
 preSwap :: Pre
@@ -257,16 +257,16 @@ preLogin c = do
   username <- getInput "gmUser"
   pswd <- getInput "gmPwd"
 
-  liftIO $ logmsg $ "Running preLogin..."
+  --liftIO $ logmsg $ "Running preLogin..."
   case (username,pswd) of
     (Just u, Just pw) -> do
-      liftIO $ logmsg $ "Got user '" ++ u ++ "' and password '" ++ pw ++ "'."
+      --liftIO $ logmsg $ "Got user '" ++ u ++ "' and password '" ++ pw ++ "'."
       let hash = showDigest . sha1 . B.pack $ pw
-      liftIO $ logmsg $ "Got hash of '" ++ hash ++ "'."
+      --liftIO $ logmsg $ "Got hash of '" ++ hash ++ "'."
       rs <- liftIO $ quickQuery' c "SELECT _id FROM User WHERE username = ? AND password = ? AND fBanned = 0" [toSql u, toSql hash]
       case rs of
         [[uid]] -> do
-          liftIO $ logmsg $ "Found userid " ++ show (fromSql uid :: Int) ++ "."
+          --liftIO $ logmsg $ "Found userid " ++ show (fromSql uid :: Int) ++ "."
           newSession c $ fromSql uid
           liftIO $ commit c
           --gmRedirect (target "pg=View")
@@ -288,7 +288,7 @@ preRegister c = do
   pswdConf <- getInput "gmPwdConfirm"
   email    <- getInput "gmEmail"
 
-  liftIO $ logmsg $ "preRegister: " ++ show username ++ ", " ++ show pswd ++ ", " ++ show pswdConf ++ ", " ++ show email
+  --liftIO $ logmsg $ "preRegister: " ++ show username ++ ", " ++ show pswd ++ ", " ++ show pswdConf ++ ", " ++ show email
 
   case (username,pswd,pswdConf,email) of
     (Just u, Just pw, Just pw', Just e) 
@@ -296,24 +296,24 @@ preRegister c = do
           --all correct, create the user
           let hash = showDigest . sha1 . B.pack $ pw
           rs <- liftIO $ quickQuery' c "SELECT _id FROM User WHERE username = ?" [toSql u]
-          liftIO $ logmsg $ "Checking for other users: " ++ show rs
+          --liftIO $ logmsg $ "Checking for other users: " ++ show rs
           case rs of
             (_:_) -> setErrorNextReq ("The username '" ++ u ++ "' is already in use.") >> return Nothing
             []    -> do
-              liftIO $ logmsg $ "Acquiring a dummy node ID to use briefly..."
-              [[anchor]] <- liftIO $ quickQuery' c "SELECT _id FROM Node LIMIT 1" []
-              liftIO $ logmsg $ "Preparing to add new user: " ++ show [toSql u, toSql hash, toSql e, anchor]
+              --liftIO $ logmsg $ "Acquiring a dummy node ID to use briefly..."
+              [[anch]] <- liftIO $ quickQuery' c "SELECT _id FROM Node LIMIT 1" []
+              --liftIO $ logmsg $ "Preparing to add new user: " ++ show [toSql u, toSql hash, toSql e, anch]
               liftIO $ run c "INSERT INTO User (username,password,email,anchor,fBanned,fAdmin) VALUES (?,?,?,?,0,1)"
-                             [toSql u, toSql hash, toSql e, anchor]
-              liftIO $ logmsg $ "New user added"
+                             [toSql u, toSql hash, toSql e, anch]
+              --liftIO $ logmsg $ "New user added"
               [[sqlUID]] <- liftIO $ quickQuery' c "SELECT _id FROM User WHERE username = ?" [toSql u]
-              liftIO $ logmsg $ "New user's id is " ++ show (fromSql sqlUID :: Int)
+              --liftIO $ logmsg $ "New user's id is " ++ show (fromSql sqlUID :: Int)
               liftIO $ run c "INSERT INTO Node (title,text,user) VALUES ('Starting Node',NULL,?)" [sqlUID]
-              liftIO $ logmsg $ "Added new user's starting node."
+              --liftIO $ logmsg $ "Added new user's starting node."
               [[sNid]]   <- liftIO $ quickQuery' c "SELECT _id FROM Node WHERE user = ?" [sqlUID]
-              liftIO $ logmsg $ "New node's id is " ++ show (fromSql sNid :: Int)
+              --liftIO $ logmsg $ "New node's id is " ++ show (fromSql sNid :: Int)
               liftIO $ run c "UPDATE User SET anchor = ? WHERE _id = ?" [sNid, sqlUID]
-              liftIO $ logmsg $ "Finished"
+              --liftIO $ logmsg $ "Finished"
 
               return . Just . fromSql $ sqlUID -- graphmind main will send him to View, which will show the freshly set anchor.
       

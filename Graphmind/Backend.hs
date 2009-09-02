@@ -171,7 +171,7 @@ orphanedNodes = do
 setAnchor :: NodeId -> GM ()
 setAnchor nid = do
   uid <- asks user
-  io . logmsg $ "setAnchor: uid = " ++ show uid ++ ", nid = " ++ show nid
+  --io . logmsg $ "setAnchor: uid = " ++ show uid ++ ", nid = " ++ show nid
   gmRun "UPDATE User SET anchor = ? WHERE _id = ?" [toSql nid, toSql uid]
 
 
