@@ -13,188 +13,62 @@
 -----------------------------------------------------------------------------
 
 module Graphmind.Help (
-  cmdHelp
+  helpMap 
+  ,helpAbout
+  ,Help
 ) where
 
 
-import Graphmind.Types
+import Graphmind.Util
 
-import Data.Char (toLower)
+import Network.FastCGI
+import Text.XHtml hiding (title,text,target,pre,content)
 
 import qualified Data.Map as M
 
-
-type Help = GM ()
-
-cmdHelp :: Command
-cmdHelp _ []    = helpIndex
-cmdHelp _ a = case M.lookup (map toLower a) help of
-                      Nothing -> helpIndex
-                      Just h  -> h
+type Help = CGI CGIResult
 
 
-
-help :: M.Map String Help
-help = M.fromList [
-   ("quit"     , helpQuit)
-  ,("ls"       , helpShowNode)
-  ,("show"     , helpShowNode)
-  ,("view"     , helpShowNode)
-  ,("focus"    , helpFocus)
-  ,("fls"      , helpFocus)
-  ,("fshow"    , helpFocus)
-  ,("pwd"      , helpWhere)
-  ,("where"    , helpWhere)
-  ,("cd"       , helpMove)
-  ,("move"     , helpMove)
-  ,("mv"       , helpMove)
-  ,("fcd"      , helpMoveFocus)
-  ,("fmove"    , helpMoveFocus)
-  ,("fmv"      , helpMoveFocus)
-  ,("link"     , helpLink)
-  ,("unlink"   , helpUnlink)
-  ,("edit"     , helpEdit)
-  ,("rename"   , helpRename)
-  ,("swap"     , helpSwap)
-  ,("new"      , helpNew)
-  ,("index"    , helpIndex)
-  ,("about"    , helpAbout)
-  ]
+helpMap :: M.Map String Help
+helpMap = M.fromList [
+           ("About", helpAbout)
+          ]
 
 
-template :: String -> [String] -> Help
-template cmd x = io . putStrLn . unlines $ ["", cmd', map (const '=') cmd', ""] ++ x
-  where cmd' = "   " ++ cmd ++ "   "
-
-
--- | General explanation of graphmind.
 helpAbout :: Help
-helpAbout = template "About Graphmind" $
-  [ "Graphmind is a mind mapping and organization tool based on undirected"
-  , "graphs. An undirected graph is a collection of nodes with bidirectional"
-  , "links between them. Each Graphmind node has a title, neighbouring nodes,"
-  , "and an optional body text."
-  , ""
-  , "Graphmind is deliberately freeform: your nodes can be people, places, events,"
-  , "projects, schedule items, bugs, pet peeves. The structure need not be"
-  , "hierarchical, cycles are not only allowed but encouraged."
-  , ""
-  , "As a user, you interact with Graphmind through commands. Information on those"
-  , "commands can be found by typing 'help index'."
-  , ""
-  , "You navigate Graphmind's graph using two 'cursors', called focus and view."
-  , "The focus is considered your central point, your base camp."
-  , "In contrast, the view is the node you're currently looking at. Its name is"
-  , "displayed in the prompt, and it is the one you'll rename or edit using those"
-  , "commands."
-  , ""
-  , "Graphmind was written in Haskell by Braden Shepherdson."
-  ]
+helpAbout = cgiPg $ cgiPgTemplate "About Graphmind" $
+  paragraph << s2h "Graphmind is a mind mapping tool based on undirected graphs. An undirected graph is a collection of nodes with bidirectional links between them. In Graphmind, each node has a title, its neighbouring nodes, and an optional body text."
+  +++
+  paragraph << s2h "Graphmind is deliberately freeform: your nodes can be people, places, events, projects, schedule items, bugs, pet peeves. The structure need not be hierarchical, cycles are not only allowed but encouraged."
+  +++
+  h3 << s2h "Navigating the Nodes"
+  +++
+  paragraph << (
+    s2h "When viewing a node, there are links to each of its neighbour nodes. If you click one of these, you will move to viewing that node. In addition to the node you're currently viewing, Graphmind tracks a node known as the "
+    +++ bold << s2h "anchor"
+    +++ s2h ". The main function of the anchor is when you need to specify two nodes for an operation, such as Link and Unlink. These operations link and unlink the currently viewed node and the anchor node."
+    )
+  +++
+  paragraph << (s2h "There is a section of controls for the anchor on the main node viewing page. You can:"
+  +++
+  unordList [s2h "Swap the anchor and viewed nodes, so that the node you're viewing now becomes the anchor, and you switch to viewing the node that was the anchor."
+            ,s2h "Go to the anchor, so that you're viewing it."
+            ,s2h "Move the anchor to the current node."
+            ]
+   )
+  +++
+  h3 << "Linking and Unlinking"
+  +++
+  paragraph << s2h "As mentioned in passing above, to Link and Unlink nodes you must set one of the nodes you wish to link or unlink to the anchor, and then view the other. If the nodes are not currently linked, you will have a \"Link to anchor\" option. If they are currently linked, you will have \"Unlink from anchor\" instead."
+  +++
+  h3 << s2h "Editing Nodes"
+  +++
+  paragraph << s2h "Nodes can be edited, updating their body text and titles. They can be deleted too, and you can create new nodes. New nodes are created with a link to the node you were viewing when you clicked \"Create new node\"."
+  +++
+  h3 << s2h "Further Navigation"
+  +++
+  paragraph << s2h "You can also search for nodes, and Graphmind will locate nodes containing the search phrase in their title or text. Also there is a search-like function that will locate \"orphaned\" nodes. An orphaned node is one that no longer connects to any others, and therefore couldn't be reached without using a Search."
+  +++
+  paragraph << s2h "This is not the proper definition of orphaned nodes, which should be any node unreachable from the user's current location, even if those orphaned nodes are connected among themselves but disconnected from the part of the graph where the user is currently. The algorithm for this is well-understood, but it has not been implemented in Graphmind yet."
 
-
-helpQuit :: Help
-helpQuit = template "quit" $
-  [ "Exits from Graphmind."
-  , ""
-  , "Graphmind saves its data after every change, so there is no 'save' commnad."
-  ]
-
-
-helpShowNode :: Help
-helpShowNode = template "show, ls, view" $
-  [ "Displays the full details of the current view node." ]
-
-
-helpFocus :: Help
-helpFocus = template "fshow, fls, focus" $
-  [ "Displays the full details of the current focus node." ]
-
-
-helpWhere :: Help
-helpWhere = template "where, pwd" $ 
-  [ "Displays the titles of both the view and focus nodes." ]
-
-
-helpMove :: Help
-helpMove = template "move, cd, mv" $
-  [ "Moves the view cursor to point at the specified node."
-  , ""
-  , "Nodes can be named in three ways:"
-  , "1. By number from the list displayed by show, view and ls."
-  , "2. By a unique infix of the title of a neighbour."
-  , "   (not case-sensitive, spaces allowed)"
-  , "3. One of the magic names 'focus' and 'view', which will move to"
-  , "   that node. (Of course, 'move view' won't change anything.)"
-  ]
-
-
-helpMoveFocus :: Help
-helpMoveFocus = template "fmove, fcd, fmv" $
-  [ "Moves the focus cursor to point at the specified node."
-  , ""
-  , "Nodes can be named in three ways:"
-  , "1. By number from the list displayed by fshow, focus and fls."
-  , "2. By a unique infix of the title of a neighbour."
-  , "   (not case-sensitive, spaces allowed)"
-  , "3. One of the magic names 'focus' and 'view', which will move to"
-  , "   that node. (Of course, 'move focus' won't change anything.)"
-  ]
-
-
-helpLink :: Help
-helpLink = template "link" $
-  [ "Connects the focus and view nodes together."
-  , ""
-  , "If they are already connected, 'link' does nothing."
-  ]
-
-
-helpUnlink :: Help
-helpUnlink = template "unlink" $
-  [ "Disconnects the focus and view nodes."
-  , ""
-  , "If they are not connected, 'unlink' does nothing."
-  ]
-
-
-helpEdit :: Help
-helpEdit = template "edit" $
-  [ "Allows you to update the body text of the view node." ]
-
-
-helpRename :: Help
-helpRename = template "rename" $
-  [ "Allows you to change the title of the view node."
-  , ""
-  , "The new name can be given following the command."
-  , "If no new name is given with the command, rename prompts for one."
-  ]
-
-
-helpSwap :: Help
-helpSwap = template "swap" $
-  [ "Exchanges the focus and view nodes." ]
-
-
-helpNew :: Help
-helpNew = template "new" $
-  [ "Creates a new node and links it to the focus node. The view cursor is moved"
-  , "to point to the new node."
-  , ""
-  , "The title of the new node should be provided following the command, eg."
-  , "> new My New Node"
-  ]
-
-
-helpIndex :: Help
-helpIndex = template "Help Index" $
-  [ "Following is a list of help topics."
-  , "For general information about Graphmind, see 'help about'."
-  , ""
-  , "To view a help topic, use the command"
-  , "> help foo"
-  , "where 'foo' is one of the following:"
-  , ""
-  ]
-  ++ M.keys help
 

@@ -31,13 +31,6 @@ module Graphmind.Types (
  ,showNodeList
  ,Pre
  ,Pg
-
- ,gmInput
- ,gmSetInput
- ,gmReadInput
-
- ,logmsg
- ,gmRedirect
 ) where
 
 import Control.Monad
@@ -50,7 +43,6 @@ import Control.Applicative
 import Database.HDBC ()
 import Database.HDBC.Sqlite3
 
-import Data.Time
 import qualified Data.Map as M
 
 import Network.FastCGI
@@ -116,27 +108,3 @@ cgi :: forall a. CGI a -> GM a
 cgi = GM . lift . lift
 
 
--- helper functions
-
-gmInput :: String -> GM (Maybe String)
-gmInput s = do
-  v <- M.lookup s <$> gets vars
-  c <- cgi $ getInput s
-  return $ v `mplus` c
-  
-gmSetInput :: String -> String -> GM ()
-gmSetInput k v = modify $ \st -> st { vars = M.insert k v (vars st) }
-
-gmReadInput :: (Read a) => String -> GM (Maybe a)
-gmReadInput s = fmap read <$> gmInput s
-
-
--- debugging
-
-logmsg :: String -> IO ()
-logmsg s = do
-  t <- getCurrentTime
-  appendFile "/var/log/graphmind.log" $ "[" ++ show t ++ "] " ++ s ++ "\n"
-
-gmRedirect :: String -> CGI CGIResult
-gmRedirect t = setHeader "Location" t >> outputNothing

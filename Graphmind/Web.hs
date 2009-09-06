@@ -30,14 +30,14 @@ module Graphmind.Web (
 import Graphmind.Types
 import Graphmind.Backend
 import Graphmind.Sessions
+import Graphmind.Util
 
 import Database.HDBC
 import Database.HDBC.Sqlite3
 
+import Data.Maybe (isJust,fromMaybe)
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy.Char8 as B
-import Data.List (intercalate)
-import Data.Maybe (isJust,fromMaybe)
 
 import Network.FastCGI
 import Text.XHtml hiding (title,text,target,pre,content)
@@ -47,57 +47,6 @@ import Data.Digest.Pure.SHA
 -----------------------------------------------------------------------------
 -- utility functions
 -----------------------------------------------------------------------------
-
--- | Takes the title and body and constructs the page.
---
--- Needs to be in CGI because it uses the @err@ parameter.
-pgTemplate :: String -> Html -> GM Html
-pgTemplate t b = do
-  err  <- cgi $ getErrorNextReq
-  err' <- getErrorThisReq
-  return $ header << thetitle << s2h t +++ body << (
-             h1 << t +++ err +++ err' +++ b
-           )
-
-cgiPgTemplate :: String -> Html -> CGI Html
-cgiPgTemplate t b = do
-  err  <- getErrorNextReq
-  return $ header << thetitle << s2h t +++ body << (
-             h1 << t +++ err +++ b
-           )
-
-
-showPg :: Html -> CGI CGIResult
-showPg = output . showHtml
-
-
-pg :: GM Html -> GM CGIResult
-pg h = h >>= cgi . showPg
-
-
-cgiPg :: CGI Html -> CGI CGIResult
-cgiPg h = h >>= showPg
-
-
-s2h :: String -> Html
-s2h = stringToHtml
-
-
-nodeLinks :: Node -> [HotLink]
-nodeLinks = listLinks . adjacent
-
-listLinks :: [(NodeId,String)] -> [HotLink]
-listLinks xs = map (\(i,t) -> gmlink "" "View" [("view", show i)] (s2h t)) xs
-
-target :: String -> String
-target s = "/graphmind/graphmind.fcgi?" ++ s
-
--- pre, pg, other params, link text
-gmlink :: String -> String -> [(String,String)] -> Html -> HotLink
-gmlink pre pg' params content = hotlink (target . intercalate "&" . map (\(x,y) -> x++"="++y) $ params') content
-  where params' | null pre  = ("pg",pg') : params
-                | otherwise = [("pre", pre), ("pg", pg')] ++ params
-
 
 getView :: GM Node
 getView = getNodeFromParamAnchor "view"
@@ -130,34 +79,6 @@ getNodeFromParam s = do --fmap (join . getNode) <$> getNodeIdFromParam -- need t
     Nothing -> return Nothing
     Just nid -> getNode nid
 
-
------------------------------------------------------------------------------
--- error handling
------------------------------------------------------------------------------
-
-setErrorNextReq :: String -> CGI ()
-setErrorNextReq = setCookie . newCookie "graphmind-error"
-
-
--- either prints the error message or nothing
-getErrorNextReq :: CGI Html
-getErrorNextReq = do
-  c <- getCookie "graphmind-error"
-  case c of
-    Nothing -> return noHtml
-    Just e  -> do
-      deleteCookie $ newCookie "graphmind-error" ""
-      return $ paragraph ! [theclass "error"] << s2h e
-
-
-setErrorThisReq :: String -> GM ()
-setErrorThisReq s = modify $ \st -> st { errors = errors st ++ [s] }
-
-getErrorThisReq :: GM Html
-getErrorThisReq = do
-  es <- gets errors
-  modify $ \st -> st { errors = [] }
-  return $ paragraph ! [theclass "error"] << unordList (map s2h es)
 
 -----------------------------------------------------------------------------
 -- pre handlers
@@ -429,7 +350,16 @@ pgSearch = do
 -- This pg is special, it's not in GM since there's no UserId yet.
 
 pgLogin :: CGI CGIResult
-pgLogin = cgiPg $ cgiPgTemplate "Graphmind Login" $ 
+pgLogin = cgiPg $ cgiPgTemplate "Graphmind" $ 
+  paragraph << s2h "Graphmind is a mind mapping tool based on undirected graphs."
+  +++
+  h3 << s2h "New to Graphminnd?"
+  +++
+  unordList [gmlink "" "About"    [] (s2h "Learn how to use Graphmind.")
+            ,gmlink "" "Register" [] (s2h "Register a new user") ]
+  +++
+  h3 << s2h "Existing user? Log in"
+  +++
   form ! [action $ target "pre=Login&pg=View", method "POST"]
     << (table << tbody
       << (tr << (td << s2h "Username:" +++ td << textfield "" ! [size "30", maxlength 50, name "gmUser"])

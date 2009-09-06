@@ -22,13 +22,15 @@ module Main (
 import Graphmind.Types
 import Graphmind.Sessions
 import Graphmind.Web
+import Graphmind.Help
+import Graphmind.Util (gmInput)
 
 import Network.FastCGI
 
 import Database.HDBC
 import Database.HDBC.Sqlite3
 
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe,isJust,fromJust)
 import qualified Data.Map as M
 
 
@@ -60,9 +62,7 @@ cgiMain c = do
   pg  <- getInput "pg"
   case (s,pre,pg) of
     (Nothing, Just "Login",_) -> do 
-        --liftIO $ logmsg "srsly"
         res <- preLogin c
-        --liftIO $ logmsg $ "preLogin result: " ++ show res
         case res of
           Just u  -> runGM graphmind (GMConf c u) (GMState [] M.empty)
           Nothing -> pgLogin
@@ -72,7 +72,11 @@ cgiMain c = do
           Just u  -> runGM graphmind (GMConf c u) (GMState [] M.empty)
           Nothing -> pgRegister
     (Nothing, _, Just "Register") -> pgRegister
-    (Nothing, _, _)            -> {- liftIO (logmsg "onoes") >> -} pgLogin
+
+    (_,_, Just h) | isJust h' -> fromJust h'
+                      where h' = M.lookup h helpMap
+
+    (Nothing, _, _)            -> pgLogin
     (Just u, _, _)             -> runGM graphmind (GMConf c u) (GMState [] M.empty)
 
 

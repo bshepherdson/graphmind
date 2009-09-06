@@ -29,6 +29,8 @@ executable graphmind
                         Graphmind.Backend
                         Graphmind.Sessions
                         Graphmind.Web
+                        Graphmind.Help
+                        Graphmind.Util
 
     ghc-options:        -funbox-strict-fields -Wall -O2
     ghc-prof-options:   -prof -auto-all
