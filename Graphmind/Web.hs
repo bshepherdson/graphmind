@@ -353,7 +353,7 @@ pgLogin :: CGI CGIResult
 pgLogin = cgiPg $ cgiPgTemplate "Graphmind" $ 
   paragraph << s2h "Graphmind is a mind mapping tool based on undirected graphs."
   +++
-  h3 << s2h "New to Graphminnd?"
+  h3 << s2h "New to Graphmind?"
   +++
   unordList [gmlink "" "About"    [] (s2h "Learn how to use Graphmind.")
             ,gmlink "" "Register" [] (s2h "Register a new user") ]
