@@ -1,92 +1,247 @@
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes, TemplateHaskell, TypeFamilies #-}
+module Graphmind
+    ( Graphmind (..)
+    , GraphmindRoute (..)
+    , resourcesGraphmind
+    , Handler
+    , Widget
+    , maybeAuth
+    , requireAuth
+    , module Yesod
+    , module Settings
+    , module Model
+    , StaticRoute (..)
+    , AuthRoute (..)
+    ) where
 
-----------------------------------------------------------------------------
--- |
--- Module      :  Graphmind
--- Copyright   :  (c) Braden Shepherdson 2009
--- License     :  BSD3
+import Yesod
+import Yesod.Helpers.Static
+import Yesod.Helpers.Auth
+import Yesod.Helpers.Auth.OpenId
+import Yesod.Helpers.Auth.Email
+import qualified Settings
+import System.Directory
+import qualified Data.ByteString.Lazy as L
+import Web.Routes.Site (Site (formatPathSegments))
+import Database.Persist.GenericSql
+import Settings (hamletFile, cassiusFile, juliusFile)
+import Model
+import Data.Maybe (isJust)
+import Data.Int
+import Control.Monad (join)
+import Network.Mail.Mime
+import qualified Data.Text.Lazy
+import qualified Data.Text.Lazy.Encoding
+
+-- | The site argument for your application. This can be a good place to
+-- keep settings and values requiring initialization before your application
+-- starts running, such as database connections. Every handler will have
+-- access to the data present here.
+data Graphmind = Graphmind
+    { getStatic :: Static -- ^ Settings for static file serving.
+    , connPool :: Settings.ConnectionPool -- ^ Database connection pool.
+    }
+
+-- | A useful synonym; most of the handler functions in your application
+-- will need to be of this type.
+type Handler = GHandler Graphmind Graphmind
+
+-- | A useful synonym; most of the widgets functions in your application
+-- will need to be of this type.
+type Widget = GWidget Graphmind Graphmind
+
+-- This is where we define all of the routes in our application. For a full
+-- explanation of the syntax, please see:
+-- http://docs.yesodweb.com/book/web-routes-quasi/
 --
--- Maintainer  :  Braden.Shepherdson@gmail.com
--- Stability   :  experimental
--- Portability :  portable
+-- This function does three things:
 --
--- Main file for Graphmind, handles CGI requests.
+-- * Creates the route datatype GraphmindRoute. Every valid URL in your
+--   application can be represented as a value of this type.
+-- * Creates the associated type:
+--       type instance Route Graphmind = GraphmindRoute
+-- * Creates the value resourcesGraphmind which contains information on the
+--   resources declared below. This is used in Controller.hs by the call to
+--   mkYesodDispatch
 --
------------------------------------------------------------------------------
+-- What this function does *not* do is create a YesodSite instance for
+-- Graphmind. Creating that instance requires all of the handler functions
+-- for our application to be in scope. However, the handler functions
+-- usually require access to the GraphmindRoute datatype. Therefore, we
+-- split these actions into two functions and place them in separate files.
+mkYesodData "Graphmind" [$parseRoutes|
+/static StaticR Static getStatic
+/auth   AuthR   Auth   getAuth
 
+/favicon.ico FaviconR GET
+/robots.txt RobotsR GET
 
-module Main (
-  main
-) where
+/               RootR       GET
+/anchor         AnchorR     GET
+/view/#Int64    ViewR       GET
 
-import Graphmind.Types
-import Graphmind.Sessions
-import Graphmind.Web
-import Graphmind.Help
-import Graphmind.Util (gmInput)
+|]
 
-import Network.FastCGI
+-- /new            NewR        GET PUT
+-- /delete/#Int    DeleteR     GET DELETE
+-- /moveanchor     MoveAnchorR POST
+-- /swap           SwapR       POST
+-- /link           LinkR       POST
+-- /unlink         UnlinkR     POST
+-- /edit           EditR       GET PUT
+-- /orphans        OrphansR    GET
+-- /search/#String SearchR     GET
 
-import Database.HDBC
-import Database.HDBC.Sqlite3
+-- old site routes:
+-- pre: New, Delete, MoveAnchor, Swap, Link, Unlink, Edit
+-- pg:  View, New, Delete, Edit, Orphans, Search
+-- plus Register and Login
+-- these will be converted as follows:
+-- New: New, GET displays page and PUT creates
+-- Delete: clicking delete button makes GET request for confirmation page, DELETE request for true deletion
+-- MoveAnchor: POST. displays the same node as before (redirect?)
+-- Swap: POST. displays the new view node, which is the former anchor
+-- Link: POST. redisplays view node with the new link added
+-- Unlink: POST. redisplays view node without the link
+-- Edit: GET shows the edit page, PUT to store and display the edited node
+-- View: GET
+-- Orphans: GET
+-- Search: GET
+-- login and register are handled by Yesod's auth system now
 
-import Data.Maybe (fromMaybe,isJust,fromJust)
-import qualified Data.Map as M
+-- Please see the documentation for the Yesod typeclass. There are a number
+-- of settings which can be configured by overriding methods here.
+instance Yesod Graphmind where
+    approot _ = Settings.approot
 
+    defaultLayout widget = do
+        mmsg <- getMessage
+        pc <- widgetToPageContent $ do
+            widget
+            addCassius $(Settings.cassiusFile "default-layout")
+        hamletToRepHtml $(Settings.hamletFile "default-layout")
 
-graphmind :: GM CGIResult
-graphmind = do
-  preName <- fromMaybe ""     <$> gmInput "pre"
-  pgName  <- fromMaybe "View" <$> gmInput "pg"
+    -- This is done to provide an optimization for serving static files from
+    -- a separate domain. Please see the staticroot setting in Settings.hs
+    urlRenderOverride a (StaticR s) =
+        Just $ uncurry (joinPath a Settings.staticroot) $ format s
+      where
+        format = formatPathSegments ss
+        ss :: Site StaticRoute (String -> Maybe (GHandler Static Graphmind ChooseRep))
+        ss = getSubSite
+    urlRenderOverride _ _ = Nothing
 
-  --io . logmsg $ "pgName: " ++ pgName
+    -- The page to be redirected to when authentication is required.
+    authRoute _ = Just $ AuthR LoginR
 
-  case (preName,pgName) of
-    --("Login",_) -> cgi $ redirect (target "pg=View") -- redirect, logged-in people shouldn't be logging in again
-    --(_,"Login") -> cgi $ redirect (target "pg=View")
-    _           -> do
-      -- note that this will ignore preLogin and pgLogin, since those don't appear in the maps.
-      let pre = fromMaybe (return ()) $ M.lookup preName preMap
-          pg  = fromMaybe pgView      $ M.lookup pgName  pgMap
-  
-      pre
-      io . commit =<< asks conn
-      pg
+    -- This function creates static content files in the static folder
+    -- and names them based on a hash of their content. This allows
+    -- expiration dates to be set far in the future without worry of
+    -- users receiving stale content.
+    addStaticContent ext' _ content = do
+        let fn = base64md5 content ++ '.' : ext'
+        let statictmp = Settings.staticdir ++ "/tmp/"
+        liftIO $ createDirectoryIfMissing True statictmp
+        liftIO $ L.writeFile (statictmp ++ fn) content
+        return $ Just $ Right (StaticR $ StaticRoute ["tmp", fn] [], [])
 
+-- How to run database actions.
+instance YesodPersist Graphmind where
+    type YesodDB Graphmind = SqlPersist
+    runDB db = fmap connPool getYesod >>= Settings.runConnectionPool db
 
-cgiMain :: Connection -> CGI CGIResult
-cgiMain c = do
-  --liftIO $ logmsg "Begin session"
-  s <- checkSession c
-  pre <- getInput "pre"
-  pg  <- getInput "pg"
-  case (s,pre,pg) of
-    (Nothing, Just "Login",_) -> do 
-        res <- preLogin c
-        case res of
-          Just u  -> runGM graphmind (GMConf c u) (GMState [] M.empty)
-          Nothing -> pgLogin
-    (Nothing, Just "Register",_) -> do
-        res <- preRegister c
-        case res of
-          Just u  -> runGM graphmind (GMConf c u) (GMState [] M.empty)
-          Nothing -> pgRegister
-    (Nothing, _, Just "Register") -> pgRegister
+instance YesodAuth Graphmind where
+    type AuthId Graphmind = UserId
 
-    (_,_, Just h) | isJust h' -> fromJust h'
-                      where h' = M.lookup h helpMap
+    -- Where to send a user after successful login
+    loginDest _ = AnchorR
+    -- Where to send a user after logout
+    logoutDest _ = RootR
 
-    (Nothing, _, _)            -> pgLogin
-    (Just u, _, _)             -> runGM graphmind (GMConf c u) (GMState [] M.empty)
+    getAuthId creds = runDB $ do
+        x <- getBy $ UniqueUser $ credsIdent creds
+        case x of
+            Just (uid, _) -> return $ Just uid
+            Nothing -> do
+                uid <- insert $ User (credsIdent creds) Nothing Nothing
+                nid <- insert $ Node "Starting Node" Nothing uid
+                update uid [UserAnchor $ Just nid]
+                return $ Just uid
 
+    showAuthId _ = showIntegral
+    readAuthId _ = readIntegral
 
-main :: IO ()
-main = do
-  c <- connectSqlite3 "/srv/http/graphmind/graphmind.db"
-  --runFastCGIorCGI $ dumpResult $ cgiMain c
-  runFastCGIorCGI $ cgiMain c
+    authPlugins = [ authOpenId
+                  , authEmail
+                  ]
 
+instance YesodAuthEmail Graphmind where
+    type AuthEmailId Graphmind = EmailId
 
---dumpResult :: CGI CGIResult -> CGI CGIResult
---dumpResult act = act >>= \res -> liftIO (logmsg $ show res) >> return res
+    showAuthEmailId _ = showIntegral
+    readAuthEmailId _ = readIntegral
 
+    addUnverified email verkey =
+        runDB $ insert $ Email email Nothing $ Just verkey
+    sendVerifyEmail email _ verurl = liftIO $ renderSendMail Mail
+        { mailHeaders =
+            [ ("From", "noreply")
+            , ("To", email)
+            , ("Subject", "Verify your email address")
+            ]
+        , mailParts = [[textPart, htmlPart]]
+        }
+      where
+        textPart = Part
+            { partType = "text/plain; charset=utf-8"
+            , partEncoding = None
+            , partFilename = Nothing
+            , partContent = Data.Text.Lazy.Encoding.encodeUtf8
+                          $ Data.Text.Lazy.pack $ unlines
+                [ "Please confirm your email address by clicking on the link below."
+                , ""
+                , verurl
+                , ""
+                , "Thank you"
+                ]
+            }
+        htmlPart = Part
+            { partType = "text/html; charset=utf-8"
+            , partEncoding = None
+            , partFilename = Nothing
+            , partContent = renderHtml [$hamlet|
+%p Please confirm your email address by clicking on the link below.
+%p
+    %a!href=$verurl$ $verurl$
+%p Thank you
+|]
+            }
+    getVerifyKey = runDB . fmap (join . fmap emailVerkey) . get
+    setVerifyKey eid key = runDB $ update eid [EmailVerkey $ Just key]
+    verifyAccount eid = runDB $ do
+        me <- get eid
+        case me of
+            Nothing -> return Nothing
+            Just e -> do
+                let email = emailEmail e
+                case emailUser e of
+                    Just uid -> return $ Just uid
+                    Nothing -> do
+                        uid <- insert $ User email Nothing Nothing
+                        nid <- insert $ Node "Starting Node" Nothing uid
+                        update uid [UserAnchor $ Just nid]
+                        update eid [EmailUser $ Just uid, EmailVerkey Nothing]
+                        return $ Just uid
+    getPassword = runDB . fmap (join . fmap userPassword) . get
+    setPassword uid pass = runDB $ update uid [UserPassword $ Just pass]
+    getEmailCreds email = runDB $ do
+        me <- getBy $ UniqueEmail email
+        case me of
+            Nothing -> return Nothing
+            Just (eid, e) -> return $ Just EmailCreds
+                { emailCredsId = eid
+                , emailCredsAuthId = emailUser e
+                , emailCredsStatus = isJust $ emailUser e
+                , emailCredsVerkey = emailVerkey e
+                }
+    getEmail = runDB . fmap (fmap emailEmail) . get
