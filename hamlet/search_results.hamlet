@@ -1,0 +1,7 @@
+%h1 Search Results
+%p Query was: $query$
+%ul
+    $forall hits h
+        %li
+            %a!href=@ViewR.fst.h@ $nodeTitle.snd.h$
+%a!href=@AnchorR@ Return to anchor
