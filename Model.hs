@@ -30,8 +30,9 @@ Node
     UniqueNode title owner
 
 Link
-    from NodeId Eq
-    to   NodeId Eq
+    from  NodeId Eq
+    to    NodeId Eq
+    owner UserId Eq
 
     
 |]

@@ -62,6 +62,7 @@ nodeHandler uid u nid = do
       body      = fmap T.unpack $ nodeBody node
       anchor    = fromJust manchor
       isAnchor  = aid == nid
+  when (nodeOwner node /= uid) $ permissionDenied "You are not the owner of this node."
   links <- runDB $ do
     links <- selectList [LinkFromEq nid] [] 0 0
     justnodes <- mapM (get . linkTo . snd) links
@@ -88,13 +89,16 @@ actionsWidget aid anchor nid node linkedToAnchor = do
         %a!href=@NewR.nid@ Create new node
     %li 
         %a!href=@DeleteR.nid@ Delete this node
-|]
-{-
     $if showLinkToAnchor
-        %li %a!href=@LinkR.nid@ Link to anchor
+        %li 
+            %form!name="linknodeform"!method=POST!action=@LinkR.nid@
+                %a!href="javascript:document.linknodeform.submit()" Link to anchor
     $elseif linkedToAnchor
-        %li %a!href=@UnlinkR.nid@ Unlink from anchor
-        -}
+        %li 
+            %form!name="unlinknodeform"!method=POST!action=@UnlinkR.nid@
+                %a!href="javascript:document.unlinknodeform.submit()" Unlink from anchor
+|]
+
 
 anchorWidget :: NodeId -> Node -> NodeId -> Node -> Widget ()
 anchorWidget aid anchor nid node = [$hamlet|
@@ -135,39 +139,48 @@ getNewR pid = do
 
 data EditForm = EditForm {
       title :: String
-    , body  :: Textarea
+    , body  :: Maybe Textarea
 }
 
 editFormlet :: Formlet s m EditForm
 editFormlet mparams = fieldsToDivs $ EditForm
     <$> stringField "Node Title" (fmap title mparams)
-    <*> textareaField "Body Text" (fmap body mparams)
+    <*> maybeTextareaField "Body Text" (fmap body mparams)
 
 
 postNewR :: NodeId -> Handler ()
 postNewR pid = do
   (uid,u) <- requireAuth
+  mparent <- runDB $ get pid
+  when (isNothing mparent) $ notFound
+  let parent = fromJust mparent
+  when (nodeOwner parent /= uid) $ permissionDenied "You do not own the parent node."
   liftIO $ putStrLn $ "postNewR: " ++ show (fromPersistKey pid)
   (res, form, _, _) <- runFormPost $ editFormlet Nothing
   case res of
-    FormMissing    -> redirect RedirectTemporary $ NewR pid
-    FormFailure _  -> redirect RedirectTemporary $ NewR pid -- FIXME: Needs to preserve the user's partial input and show the errors he made
+    FormMissing    -> do { liftIO (putStrLn "FormMissing"); redirect RedirectTemporary $ NewR pid }
+    FormFailure s  -> do { liftIO (putStrLn $ "FormFailure" ++ unlines s); redirect RedirectTemporary $ NewR pid } -- FIXME: Needs to preserve the user's partial input and show the errors he made
     FormSuccess ef -> do
-      let b_ = unTextarea $ body ef
-          b  = if null b_ then Nothing else Just (T.pack b_)
+      let b_ = fmap unTextarea $ body ef
+          b  = case b_ of
+                 Nothing -> Nothing
+                 Just [] -> Nothing
+                 Just x  -> Just (T.pack x)
       nid <- runDB $ do
         nid <- insert (Node (title ef) b uid)
-        insert (Link pid nid)
-        insert (Link nid pid)
+        insert (Link pid nid uid)
+        insert (Link nid pid uid)
         return nid
       redirect RedirectTemporary $ ViewR nid
 
 
 getDeleteR :: NodeId -> Handler RepHtml
 getDeleteR nid = do
+  (uid,u) <- requireAuth
   mnode <- runDB $ get nid
   when (isNothing mnode) notFound
   let node = fromJust mnode
+  when (nodeOwner node /= uid) $ permissionDenied "You are not the owner of this node."
   defaultLayout $ do
     setTitle $ "Confirm delete"
     addHamlet $(hamletFile "confirm_delete")
@@ -175,9 +188,47 @@ getDeleteR nid = do
 
 postDeleteR :: NodeId -> Handler ()
 postDeleteR nid = do
+  (uid,u) <- requireAuth
   runDB $ do
+    mnode <- get nid
+    when (isNothing mnode) $ lift notFound
+    let node = fromJust mnode
+    when (nodeOwner node /= uid) $ lift $ permissionDenied "You are not the owner of this node."
     deleteWhere [LinkFromEq nid]
     deleteWhere [LinkToEq   nid]
     delete nid
   redirect RedirectTemporary AnchorR
+
+
+
+
+postLinkR :: NodeId -> Handler ()
+postLinkR nid = do
+  (uid,u) <- requireAuth
+  let aid = maybe (-1) id (userAnchor u)
+  runDB $ do
+    mnode <- get nid
+    when (isNothing mnode) $ lift notFound
+    let node = fromJust mnode
+    when (nodeOwner node /= uid) $ lift $ permissionDenied "You are not the owner of this node."
+    links <- count [LinkFromEq nid, LinkToEq aid]
+    if links > 0 then return () else do
+        insert (Link aid nid uid)
+        insert (Link nid aid uid)
+        return ()
+  redirect RedirectTemporary $ ViewR nid
+
+
+postUnlinkR :: NodeId -> Handler ()
+postUnlinkR nid = do
+  (uid, u) <- requireAuth
+  let aid = maybe (-1) id (userAnchor u)
+  runDB $ do
+    mnode <- get nid
+    when (isNothing mnode) $ lift notFound
+    let node = fromJust mnode
+    when (nodeOwner node /= uid) $ lift $ permissionDenied "You are not the owner of this node."
+    deleteWhere [LinkFromEq aid, LinkToEq nid]
+    deleteWhere [LinkFromEq nid, LinkToEq aid]
+  redirect RedirectTemporary $ ViewR nid
 
