@@ -24,8 +24,8 @@ Email
     UniqueEmail email
 
 Node
-    title String update Asc
-    body Text null update
+    title String update In Asc
+    body Text null update In
     owner UserId Eq
     UniqueNode title owner
 

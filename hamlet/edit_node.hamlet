@@ -1,5 +1,5 @@
 %h1 $heading$
-%form!method=POST!action=@NewR.pid@
+%form!method=POST!action=^action^
     ^formcontent^
     $nonce$
-    %input!type=submit!value="Create"
+    %input!type=submit!value=$buttontext$

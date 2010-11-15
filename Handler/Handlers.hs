@@ -8,8 +8,9 @@ import Control.Applicative
 import Control.Monad
 import Control.Arrow ((***))
 
-import Data.List (sortBy)
+import Data.List (isInfixOf,sortBy)
 import Data.Ord (comparing)
+import Data.Char (toLower)
 
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Text as T
@@ -25,6 +26,13 @@ getNode nid = do
     Nothing -> notFound
     Just n  -> return n
 
+
+-- like getNode, but additionally checks that the given UserId is the owner of the Node, returning a permissionDenied otherwise
+getNodePerms :: NodeId -> UserId -> Handler Node
+getNodePerms nid uid = do
+  node <- getNode nid
+  when (nodeOwner node /= uid) $ permissionDenied "You are not the owner of this node."
+  return node
 
 
 -- This is a handler function for the GET request method on the RootR
@@ -100,6 +108,8 @@ actionsWidget aid anchor nid node linkedToAnchor = do
 %ul
     %li 
         %a!href=@NewR.nid@ Create new node
+    %li
+        %a!href=@EditR.nid@ Edit this node
     %li 
         %a!href=@DeleteR.nid@ Delete this node
     $if showLinkToAnchor
@@ -137,29 +147,20 @@ $else
 searchWidget :: Widget ()
 searchWidget = [$hamlet|
 %h3 Search
+%form!method=GET!action=@SearchR@
+    %input!type=text!size=20!name=q
+    %input!type=submit!value="Search"
+%br
+%a!href=@OrphansR@ Orphaned nodes
 |]
-
-
-{-
-actionWidget :: Node -> Node -> Html
-actionWidget a n = h3 << s2h "Actions" +++ unordList (map snd . filter fst $ [
-     (True, gmlink "" "New" [("parent", show (_id n))] (s2h "Create new node"))
-    ,(True, gmlink "" "Edit" [("edit", show (_id n))] (s2h "Edit this node"))
-    ,(True, gmlink "" "Delete" [("delete", show (_id n))] (s2h "Delete this node"))
-    ,(a /= n && not neighbours, 
-        gmlink "Link" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Link to anchor"))
-    ,(neighbours, gmlink "Unlink" "View" [("link1", show (_id a)), ("link2", show (_id n)), ("view", show (_id n))] (s2h "Unlink from anchor"))
-    ,(True, gmlink "" "Orphans" [] (s2h "Orphaned Nodes"))
-    ])
-  where neighbours = isJust . lookup (_id n) . adjacent $ a
--}
-
 
 
 getNewR :: NodeId -> Handler RepHtml
 getNewR pid = do
   (uid,u) <- requireAuth
-  let heading = "Create New Node" :: String
+  let heading    = "Create New Node" :: String
+      buttontext = "Create" :: String
+      action     = [$hamlet|@NewR.pid@|]
   (formcontent,_,nonce) <- generateForm $ editFormlet Nothing
   defaultLayout $ do
     setTitle $ "Create New Node"
@@ -179,11 +180,7 @@ editFormlet mparams = fieldsToDivs $ EditForm
 postNewR :: NodeId -> Handler ()
 postNewR pid = do
   (uid,u) <- requireAuth
-  mparent <- runDB $ get pid
-  when (isNothing mparent) $ notFound
-  let parent = fromJust mparent
-  when (nodeOwner parent /= uid) $ permissionDenied "You do not own the parent node."
-  liftIO $ putStrLn $ "postNewR: " ++ show (fromPersistKey pid)
+  parent <- getNodePerms pid uid
   (res, form, _, _) <- runFormPost $ editFormlet Nothing
   case res of
     FormMissing    -> do { liftIO (putStrLn "FormMissing"); redirect RedirectTemporary $ NewR pid }
@@ -200,6 +197,37 @@ postNewR pid = do
         insert (Link nid pid uid)
         return nid
       redirect RedirectTemporary $ ViewR nid
+
+
+getEditR :: NodeId -> Handler RepHtml
+getEditR nid = do
+  (uid,u) <- requireAuth
+  node <- getNodePerms nid uid
+  (formcontent,_,nonce) <- generateForm $ editFormlet $ Just $ EditForm (nodeTitle node) (Textarea . T.unpack <$> nodeBody node)
+  let heading    = ("Editing '" ++ nodeTitle node ++ "'") :: String
+      buttontext = "Save" :: String
+      action     = [$hamlet|@EditR.nid@|]
+  defaultLayout $ do
+    setTitle $ string $ "Editing '" ++ nodeTitle node ++ "'"
+    addWidget $(hamletFile "edit_node")
+
+
+postEditR :: NodeId -> Handler RepHtml
+postEditR nid = do
+  (uid,u) <- requireAuth
+  node <- getNodePerms nid uid
+  (res, form, _, _) <- runFormPost $ editFormlet $ Just $ EditForm (nodeTitle node) (Textarea . T.unpack <$> nodeBody node)
+  case res of
+    FormMissing    -> redirect RedirectTemporary $ EditR nid
+    FormFailure s  -> do { setMessage (string $ unlines s); redirect RedirectTemporary $ EditR nid }
+    FormSuccess ef -> do
+      let b = case fmap unTextarea $ body ef of
+                Nothing -> Nothing
+                Just [] -> Nothing
+                Just x  -> Just (T.pack x) 
+      runDB $ update nid [NodeTitle (title ef), NodeBody b]
+      redirect RedirectTemporary $ ViewR nid
+
 
 
 getDeleteR :: NodeId -> Handler RepHtml
@@ -280,5 +308,35 @@ postSwapR nid = do
   let oldAnchor = maybe nid id (userAnchor u)
   runDB $ update uid [UserAnchor $ Just nid]
   redirect RedirectTemporary $ ViewR oldAnchor
+
+
+
+-- TODO: This currently gets only nodes without neighbours. a connected but detached subgraph is currently only locatable via search
+getOrphansR :: Handler RepHtml
+getOrphansR = do
+  (uid,u) <- requireAuth
+  orphans <- runDB $ do
+    nodes   <- selectList [NodeOwnerEq uid] [NodeTitleAsc] 0 0
+    filterM (\(nid,_) -> count [LinkFromEq nid] >>= \n -> return (n == 0)) nodes
+  defaultLayout $ do
+    setTitle "Orphaned Nodes"
+    addWidget $(hamletFile "orphans")
+    addWidget searchWidget
+  
+
+getSearchR :: Handler RepHtml
+getSearchR = do
+  (uid,u) <- requireAuth
+  mquery <- lookupGetParam "q"
+  let query = maybe "" (map toLower) mquery
+  case query of
+    [] -> setMessage (string "Please enter a search string.") >> defaultLayout (do { setTitle "Search"; addWidget searchWidget })
+    _  -> do
+      nodes <- runDB $ selectList [NodeOwnerEq uid] [NodeTitleAsc] 0 0
+      let hits = filter (\(_,n) -> query `isInfixOf` map toLower (nodeTitle n) || query `isInfixOf` maybe "" (map toLower . T.unpack) (nodeBody n)) nodes
+      defaultLayout $ do
+        setTitle "Search Results"
+        addWidget $(hamletFile "search_results")
+  
 
 

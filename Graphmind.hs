@@ -85,12 +85,11 @@ mkYesodData "Graphmind" [$parseRoutes|
 /unlink/#NodeId     UnlinkR     POST
 /moveanchor/#NodeId MoveAnchorR POST
 /swap/#NodeId       SwapR       POST
-
+/edit/#NodeId       EditR       GET POST
+/orphans            OrphansR    GET
+/search             SearchR     GET
 |]
 
--- /edit           EditR       GET PUT
--- /orphans        OrphansR    GET
--- /search/#String SearchR     GET
 
 -- old site routes:
 -- pre: New, Delete, MoveAnchor, Swap, Link, Unlink, Edit
