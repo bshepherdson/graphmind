@@ -62,7 +62,7 @@ sidebarLayout widgets content = defaultLayout $ do
 getRootR :: Handler RepHtml
 getRootR = do
     mu <- maybeAuth
-    defaultLayout $ do
+    sidebarLayout [] $ do
         h2id <- newIdent
         setTitle $ "Graphmind homepage"
         addWidget $(hamletFile "homepage")
@@ -349,7 +349,7 @@ getSearchR = do
     _  -> do
       nodes <- runDB $ selectList [NodeOwnerEq uid] [NodeTitleAsc] 0 0
       let hits = filter (\(_,n) -> query `isInfixOf` map toLower (nodeTitle n) || query `isInfixOf` maybe "" (map toLower . T.unpack) (nodeBody n)) nodes
-      defaultLayout $ do
+      sidebarLayout [] $ do
         setTitle "Search Results"
         addWidget $(hamletFile "search_results")
   

@@ -1,4 +1,4 @@
-%h1 Hello
+%h1 Welcome to Graphmind
 $maybe mu u
     %p
         You are logged in as $userIdent.snd.u$. $
@@ -7,5 +7,17 @@ $maybe mu u
 $nothing
     %p
         You are not logged in. $
-        %a!href=@AuthR.LoginR@ Login now
+        %a!href=@AuthR.LoginR@ Log in now
         \.
+
+%p Graphmind is a new way of keeping track of information. The focus is not on the content of pages but on the connections between them. Next week's meeting is connected to Phil, Tom and Sarah. Tom's page has his contact info but he's also connected to the meeting, the Foobar project, your master list of coworkers and the list of programmers at the company.
+
+%p You navigate Graphmind using the page (or "node") you're currently viewing, and another node called the "anchor". The anchor is what makes linking and unlinking quick in Graphmind. No need to edit the page and type the name and save the edit, just click "Link to anchor". To remove an existing link, "Unlink from anchor". Of course, creating new nodes, editing existing ones and deleting nodes are all quick and convenient too.
+
+%p Graphmind doesn't make any assumptions about what a node represents. They can be people, events, discussion points, questions to ask, projects, teams, companies, customers, assignments, papers, theorems; anything at all.
+
+%p 
+    It's free and registration is based on OpenID, so you can have an account created in seconds. Classic email registration is available too if you prefer. $
+    %a!href=@AuthR.LoginR@ Log in now
+    \.
+    
