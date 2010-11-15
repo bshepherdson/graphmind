@@ -91,23 +91,6 @@ mkYesodData "Graphmind" [$parseRoutes|
 |]
 
 
--- old site routes:
--- pre: New, Delete, MoveAnchor, Swap, Link, Unlink, Edit
--- pg:  View, New, Delete, Edit, Orphans, Search
--- plus Register and Login
--- these will be converted as follows:
--- New: New, GET displays page and PUT creates
--- Delete: clicking delete button makes GET request for confirmation page, DELETE request for true deletion
--- MoveAnchor: POST. displays the same node as before (redirect?)
--- Swap: POST. displays the new view node, which is the former anchor
--- Link: POST. redisplays view node with the new link added
--- Unlink: POST. redisplays view node without the link
--- Edit: GET shows the edit page, PUT to store and display the edited node
--- View: GET
--- Orphans: GET
--- Search: GET
--- login and register are handled by Yesod's auth system now
-
 -- Please see the documentation for the Yesod typeclass. There are a number
 -- of settings which can be configured by overriding methods here.
 instance Yesod Graphmind where
@@ -118,6 +101,7 @@ instance Yesod Graphmind where
         pc <- widgetToPageContent $ do
             widget
             addCassius $(Settings.cassiusFile "default-layout")
+            addStylesheet $ StaticR $ StaticRoute ["css","graphmind.css"] []
         hamletToRepHtml $(Settings.hamletFile "default-layout")
 
     -- This is done to provide an optimization for serving static files from

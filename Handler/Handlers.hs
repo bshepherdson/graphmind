@@ -35,6 +35,23 @@ getNodePerms nid uid = do
   return node
 
 
+
+-- wrapper for defaultLayout that inserts a list of widgets into the sidebar, and a single widget into the content
+-- automatically includes the searchWidget
+sidebarLayout :: [Widget ()] -> Widget () -> Handler RepHtml
+sidebarLayout widgets content = defaultLayout $ do
+  addWidget [$hamlet|
+%div#left-sidebar
+    %h3 Graphmind
+    ^searchWidget^
+    $forall widgets w
+        ^w^
+%div#content
+    ^content^
+|]
+
+
+
 -- This is a handler function for the GET request method on the RootR
 -- resource pattern. All of your resource patterns are defined in
 -- Graphmind.hs; look for the line beginning with mkYesodData.
@@ -90,13 +107,11 @@ nodeHandler uid u nid = do
     let nodes = catMaybes $ zipWith (liftA2 (,)) (map (Just . linkTo . snd) links) justnodes
     --nodes <- map (id *** fromJust) . filter (isJust.snd) <$> mapM (\x -> (x, get . linkTo . snd $ x)) links :: YesodDB y (GHandler sub y) [(Key Node, Node)]
     return $ sortBy (comparing (nodeTitle.snd)) nodes -- can't be sorted in the DB given the current implementation of Persistent
-  defaultLayout $ do
+  let anchor = fromJust manchor
+      linkedToAnchor = (not . null . filter (== aid) . map fst $ links)
+  sidebarLayout [anchorWidget aid anchor nid node, actionsWidget aid anchor nid node linkedToAnchor] $ do
     setTitle $ string $ nodeTitle node
     addWidget $(hamletFile "node")
-    let anchor = fromJust manchor
-    addWidget $ actionsWidget aid anchor nid node (not . null . filter (== aid) . map fst $ links)
-    addWidget $ anchorWidget aid anchor nid node
-    addWidget $ searchWidget
 
 
 
@@ -162,7 +177,7 @@ getNewR pid = do
       buttontext = "Create" :: String
       action     = [$hamlet|@NewR.pid@|]
   (formcontent,_,nonce) <- generateForm $ editFormlet Nothing
-  defaultLayout $ do
+  sidebarLayout [] $ do
     setTitle $ "Create New Node"
     addWidget $(hamletFile "edit_node")
 
@@ -207,7 +222,7 @@ getEditR nid = do
   let heading    = ("Editing '" ++ nodeTitle node ++ "'") :: String
       buttontext = "Save" :: String
       action     = [$hamlet|@EditR.nid@|]
-  defaultLayout $ do
+  sidebarLayout [] $ do
     setTitle $ string $ "Editing '" ++ nodeTitle node ++ "'"
     addWidget $(hamletFile "edit_node")
 
@@ -237,7 +252,7 @@ getDeleteR nid = do
   when (isNothing mnode) notFound
   let node = fromJust mnode
   when (nodeOwner node /= uid) $ permissionDenied "You are not the owner of this node."
-  defaultLayout $ do
+  sidebarLayout [] $ do
     setTitle $ "Confirm delete"
     addHamlet $(hamletFile "confirm_delete")
 
@@ -318,10 +333,10 @@ getOrphansR = do
   orphans <- runDB $ do
     nodes   <- selectList [NodeOwnerEq uid] [NodeTitleAsc] 0 0
     filterM (\(nid,_) -> count [LinkFromEq nid] >>= \n -> return (n == 0)) nodes
-  defaultLayout $ do
+  let noOrphans = null orphans
+  sidebarLayout [] $ do
     setTitle "Orphaned Nodes"
     addWidget $(hamletFile "orphans")
-    addWidget searchWidget
   
 
 getSearchR :: Handler RepHtml

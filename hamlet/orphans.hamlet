@@ -1,6 +1,9 @@
 %h1 Orphans
-%ul
-    $forall orphans o
-        %li
-            %a!href=@ViewR.fst.o@ $nodeTitle.snd.o$
+$if noOrphans
+    %p No orphaned nodes.
+$else
+    %ul
+        $forall orphans o
+            %li
+                %a!href=@ViewR.fst.o@ $nodeTitle.snd.o$
 %a!href=@AnchorR@ Return to anchor

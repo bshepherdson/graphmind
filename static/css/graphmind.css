@@ -1,0 +1,23 @@
+#left-sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 200px;
+    height: 100%;
+}
+
+@media screen {
+    body>div#left-sidebar {
+       position:fixed;
+    }
+}
+
+* html body {
+    overflow:hidden;
+}
+
+* html div#content {
+    height:100%;
+    overflow:auto;
+}
+
