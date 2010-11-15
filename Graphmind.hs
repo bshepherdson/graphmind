@@ -78,12 +78,12 @@ mkYesodData "Graphmind" [$parseRoutes|
 
 /               RootR       GET
 /anchor         AnchorR     GET
-/view/#Int64    ViewR       GET
+/view/#NodeId   ViewR       GET
+/new/#NodeId    NewR        GET POST
+/delete/#NodeId DeleteR     GET POST
 
 |]
 
--- /new            NewR        GET PUT
--- /delete/#Int    DeleteR     GET DELETE
 -- /moveanchor     MoveAnchorR POST
 -- /swap           SwapR       POST
 -- /link           LinkR       POST

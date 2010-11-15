@@ -39,11 +39,10 @@ getAnchorR = do
     Just aid -> nodeHandler uid u aid
 
 
-getViewR :: Int64 -> Handler RepHtml
-getViewR nid_ = do
+getViewR :: NodeId -> Handler RepHtml
+getViewR nid = do
   (uid, u) <- requireAuth
   -- check the node in question actually belongs to this user
-  let nid = toPersistKey nid_
   mn <- runDB $ get nid
   when (isNothing mn) notFound -- short-circuit
   let n = fromJust mn -- safe, guarded by the above
@@ -72,22 +71,33 @@ nodeHandler uid u nid = do
   defaultLayout $ do
     setTitle $ string $ nodeTitle node
     addWidget $(hamletFile "node")
-    -- let anchor = fromJust manchor
-    -- addWidget $ actionsWidget anchor node
-    -- addWidget $ anchorWidget anchor node
-    -- addWidget $ searchWidget
+    let anchor = fromJust manchor
+    addWidget $ actionsWidget aid anchor nid node (not . null . filter (== aid) . map fst $ links)
+    addWidget $ anchorWidget aid anchor nid node
+    addWidget $ searchWidget
 
 
 
-actionsWidget :: Node -> Node -> Widget ()
-actionsWidget anchor node = [$hamlet|
+actionsWidget :: NodeId -> Node -> NodeId -> Node -> Bool -> Widget ()
+actionsWidget aid anchor nid node linkedToAnchor = do
+  let showLinkToAnchor = aid /= nid && not linkedToAnchor
+  [$hamlet|
 %h3 Actions
+%ul
+    %li 
+        %a!href=@NewR.nid@ Create new node
+    %li 
+        %a!href=@DeleteR.nid@ Delete this node
 |]
--- %ul
---    %li %a!href=@NewR@ 
+{-
+    $if showLinkToAnchor
+        %li %a!href=@LinkR.nid@ Link to anchor
+    $elseif linkedToAnchor
+        %li %a!href=@UnlinkR.nid@ Unlink from anchor
+        -}
 
-anchorWidget :: Node -> Node -> Widget ()
-anchorWidget anchor node = [$hamlet|
+anchorWidget :: NodeId -> Node -> NodeId -> Node -> Widget ()
+anchorWidget aid anchor nid node = [$hamlet|
 %h3 Anchor
 |]
 
@@ -112,4 +122,62 @@ actionWidget a n = h3 << s2h "Actions" +++ unordList (map snd . filter fst $ [
   where neighbours = isJust . lookup (_id n) . adjacent $ a
 -}
 
+
+
+getNewR :: NodeId -> Handler RepHtml
+getNewR pid = do
+  (uid,u) <- requireAuth
+  let heading = "Create New Node" :: String
+  (formcontent,_,nonce) <- generateForm $ editFormlet Nothing
+  defaultLayout $ do
+    setTitle $ "Create New Node"
+    addWidget $(hamletFile "edit_node")
+
+data EditForm = EditForm {
+      title :: String
+    , body  :: Textarea
+}
+
+editFormlet :: Formlet s m EditForm
+editFormlet mparams = fieldsToDivs $ EditForm
+    <$> stringField "Node Title" (fmap title mparams)
+    <*> textareaField "Body Text" (fmap body mparams)
+
+
+postNewR :: NodeId -> Handler ()
+postNewR pid = do
+  (uid,u) <- requireAuth
+  liftIO $ putStrLn $ "postNewR: " ++ show (fromPersistKey pid)
+  (res, form, _, _) <- runFormPost $ editFormlet Nothing
+  case res of
+    FormMissing    -> redirect RedirectTemporary $ NewR pid
+    FormFailure _  -> redirect RedirectTemporary $ NewR pid -- FIXME: Needs to preserve the user's partial input and show the errors he made
+    FormSuccess ef -> do
+      let b_ = unTextarea $ body ef
+          b  = if null b_ then Nothing else Just (T.pack b_)
+      nid <- runDB $ do
+        nid <- insert (Node (title ef) b uid)
+        insert (Link pid nid)
+        insert (Link nid pid)
+        return nid
+      redirect RedirectTemporary $ ViewR nid
+
+
+getDeleteR :: NodeId -> Handler RepHtml
+getDeleteR nid = do
+  mnode <- runDB $ get nid
+  when (isNothing mnode) notFound
+  let node = fromJust mnode
+  defaultLayout $ do
+    setTitle $ "Confirm delete"
+    addHamlet $(hamletFile "confirm_delete")
+
+
+postDeleteR :: NodeId -> Handler ()
+postDeleteR nid = do
+  runDB $ do
+    deleteWhere [LinkFromEq nid]
+    deleteWhere [LinkToEq   nid]
+    delete nid
+  redirect RedirectTemporary AnchorR
 

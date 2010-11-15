@@ -1,0 +1,8 @@
+%h1 Confirm Delete: $nodeTitle.node$
+%p Are you sure you want to $
+    %em permanently $
+    delete the node entitled
+    %blockquote $nodeTitle.node$
+%form!method=POST!action=@DeleteR.nid@
+    %input!type=submit!value="Delete"
+    %a!href=@ViewR.nid@ Go Back

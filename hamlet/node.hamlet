@@ -2,7 +2,7 @@
     %h1.nodetitle $nodeTitle.node$
     %ul
         $forall links x
-            %a!href=@ViewR.fromPersistKey.fst.x@ $nodeTitle.snd.x$
+            %a!href=@ViewR.fst.x@ $nodeTitle.snd.x$
 
     $maybe body b
         %p $b$
