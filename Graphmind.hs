@@ -76,18 +76,18 @@ mkYesodData "Graphmind" [$parseRoutes|
 /favicon.ico FaviconR GET
 /robots.txt RobotsR GET
 
-/               RootR       GET
-/anchor         AnchorR     GET
-/view/#NodeId   ViewR       GET
-/new/#NodeId    NewR        GET POST
-/delete/#NodeId DeleteR     GET POST
-/link/#NodeId   LinkR       POST
-/unlink/#NodeId UnlinkR     POST
+/                   RootR       GET
+/anchor             AnchorR     GET
+/view/#NodeId       ViewR       GET
+/new/#NodeId        NewR        GET POST
+/delete/#NodeId     DeleteR     GET POST
+/link/#NodeId       LinkR       POST
+/unlink/#NodeId     UnlinkR     POST
+/moveanchor/#NodeId MoveAnchorR POST
+/swap/#NodeId       SwapR       POST
 
 |]
 
--- /moveanchor     MoveAnchorR POST
--- /swap           SwapR       POST
 -- /edit           EditR       GET PUT
 -- /orphans        OrphansR    GET
 -- /search/#String SearchR     GET

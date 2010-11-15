@@ -14,6 +14,19 @@ import Data.Ord (comparing)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Text as T
 
+
+-- helper functions
+
+-- turns a NodeId into a Node. if the Node is not found, does a notFound
+getNode :: NodeId -> Handler Node
+getNode nid = do
+  mnode <- runDB $ get nid
+  case mnode of
+    Nothing -> notFound
+    Just n  -> return n
+
+
+
 -- This is a handler function for the GET request method on the RootR
 -- resource pattern. All of your resource patterns are defined in
 -- Graphmind.hs; look for the line beginning with mkYesodData.
@@ -101,8 +114,23 @@ actionsWidget aid anchor nid node linkedToAnchor = do
 
 
 anchorWidget :: NodeId -> Node -> NodeId -> Node -> Widget ()
-anchorWidget aid anchor nid node = [$hamlet|
+anchorWidget aid anchor nid node = do
+  let isAnchor = aid == nid
+  [$hamlet|
 %h3 Anchor
+$if isAnchor
+    %p Viewing anchor now.
+$else
+    %b $nodeTitle.anchor$
+    %ul
+        %li
+            %form!name="moveanchorform"!method=POST!action=@MoveAnchorR.nid@
+                %a!href="javascript:document.moveanchorform.submit()" Move anchor here
+        %li
+            %form!name="swapanchorform"!method=POST!action=@SwapR.nid@
+                %a!href="javascript:document.swapanchorform.submit()" Swap with current
+        %li
+            %a!href=@ViewR.aid@ Go to anchor
 |]
 
 
@@ -231,4 +259,26 @@ postUnlinkR nid = do
     deleteWhere [LinkFromEq aid, LinkToEq nid]
     deleteWhere [LinkFromEq nid, LinkToEq aid]
   redirect RedirectTemporary $ ViewR nid
+
+
+
+
+postMoveAnchorR :: NodeId -> Handler ()
+postMoveAnchorR nid = do
+  (uid, u) <- requireAuth
+  node <- getNode nid
+  when (nodeOwner node /= uid) $ permissionDenied "You are not the owner of this node."
+  runDB $ update uid [UserAnchor $ Just nid]
+  redirect RedirectTemporary $ ViewR nid
+
+
+postSwapR :: NodeId -> Handler ()
+postSwapR nid = do
+  (uid, u) <- requireAuth
+  node <- getNode nid
+  when (nodeOwner node /= uid) $ permissionDenied "You are not the owner of this node."
+  let oldAnchor = maybe nid id (userAnchor u)
+  runDB $ update uid [UserAnchor $ Just nid]
+  redirect RedirectTemporary $ ViewR oldAnchor
+
 
